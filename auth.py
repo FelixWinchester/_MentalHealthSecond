@@ -4,11 +4,13 @@ from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
 from models import TokenData
-from database import get_db  # Добавьте этот импорт
+from database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
+from models import UserDB
+import os
+import secrets
 
-# Настройки для JWT
-SECRET_KEY = "your-secret-key"  # Замените на реальный секретный ключ
+SECRET_KEY = secrets.token_urlsafe(64)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

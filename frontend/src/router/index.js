@@ -1,22 +1,34 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import HomePage from '../views/Home.vue'; // Обновили импорт
-import AboutPage from '../views/About.vue'; // Обновили импорт
+import HomePage from '../components/HomePage.vue';
+import LoginPage from '../components/LoginPage.vue';
+import RegisterPage from '../components/RegisterPage.vue';
+import LkPage from '../components/LkPage.vue';
 
 const routes = [
   {
-    path: '/',
-    name: 'Home',
-    component: HomePage, 
+    path: '/:page?', // Добавляем параметр :page
+    component: HomePage,
+    props: true, // Передаем параметры как props
   },
   {
-    path: '/about',
-    name: 'About',
-    component: AboutPage, 
+    path: '/login/:page?', // Добавляем параметр :page
+    component: LoginPage,
+    props: true,
+  },
+  {
+    path: '/register/:page?', // Добавляем параметр :page
+    component: RegisterPage,
+    props: true,
+  },
+  {
+    path: '/lk/:page?', // Добавляем параметр :page
+    component: LkPage,
+    props: true,
   },
 ];
 
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history: createWebHistory(),
   routes,
 });
 

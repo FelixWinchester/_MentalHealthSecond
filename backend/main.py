@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update, select  # Import select here
 from database import get_db, create_tables
-from models import UserCreate, User, Token, UserDB
+from models import UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut
 from auth import get_password_hash, create_access_token, verify_password, get_current_user
 from datetime import timedelta
 from typing import Optional
@@ -108,3 +108,20 @@ async def update_user_info(
         await db.commit()
 
     return {"message": "User information updated successfully"}
+
+#эндпоинт для оценки настроения
+@app.post("/mood", response_model=MoodEntryOut)
+async def create_mood_entry(
+    mood_entry: MoodEntryCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    new_entry = MoodEntry(
+        user_id=current_user.id,
+        mood=mood_entry.mood,
+        details=mood_entry.details
+    )
+    db.add(new_entry)
+    await db.commit()
+    await db.refresh(new_entry)
+    return new_entry

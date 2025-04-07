@@ -125,3 +125,7 @@ async def create_mood_entry(
     await db.commit()
     await db.refresh(new_entry)
     return new_entry
+
+@app.get("/me", response_model=User)
+async def read_users_me(current_user: UserDB = Depends(get_current_user)):
+    return current_user

@@ -7,6 +7,7 @@
         <router-link to="/login" class="nav-link" active-class="active">Вход</router-link>
         <router-link to="/register" class="nav-link" active-class="active">Регистрация</router-link>
         <router-link to="/lk" class="nav-link" active-class="active">Личный кабинет</router-link>
+        <router-link to="/condition" class="nav-link" active-class="active">Состояние</router-link>
       </nav>
     </header>
 

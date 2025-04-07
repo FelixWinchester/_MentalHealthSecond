@@ -3,6 +3,7 @@ import HomePage from '../components/HomePage.vue';
 import LoginPage from '../components/LoginPage.vue';
 import RegisterPage from '../components/RegisterPage.vue';
 import LkPage from '../components/LkPage.vue';
+import ConditionPage from '@/components/ConditionPage.vue';
 
 const routes = [
   {
@@ -23,6 +24,11 @@ const routes = [
   {
     path: '/lk/:page?', // Добавляем параметр :page
     component: LkPage,
+    props: true,
+  },
+  {
+    path: '/condition/:page?', // Добавляем параметр :page
+    component: ConditionPage,
     props: true,
   },
 ];

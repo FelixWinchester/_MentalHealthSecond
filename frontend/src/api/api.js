@@ -28,7 +28,7 @@ export default {
 
   async getUserInfo(token) {
     try {
-      const response = await apiClient.get('/users/me', {
+      const response = await apiClient.get('/me', {
         headers: {
           Authorization: `Bearer ${token}`,
         },

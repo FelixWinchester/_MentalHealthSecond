@@ -6,6 +6,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import TokenData, UserDB
 from database import get_db
+from sqlalchemy import select
 
 # Настройки для JWT
 SECRET_KEY = "your-secret-key"
@@ -51,8 +52,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: AsyncSession
         token_data = TokenData(username=username)
     except JWTError:
         raise credentials_exception
-    result = await db.execute(UserDB.__table__.select().where(UserDB.username == token_data.username))
-    user = result.scalar()
+    result = await db.execute(select(UserDB).where(UserDB.username == token_data.username))
+    user = result.scalar_one_or_none()
     if user is None:
         raise credentials_exception
     return user

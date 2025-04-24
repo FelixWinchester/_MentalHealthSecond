@@ -22,7 +22,7 @@ class User(UserBase):
     created_at: datetime
 
     class Config:
-        from_attributes = True  # Замените orm_mode на from_attributes
+        from_attributes = True 
 
 class Token(BaseModel):
     access_token: str

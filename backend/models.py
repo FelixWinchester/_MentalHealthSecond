@@ -36,6 +36,11 @@ class MoodMap:
         "ANXIOUS": 2,
         "ANGRY": 1,
     }
+    
+    @classmethod
+    def get_score(cls, mood: str) -> int:
+        """Возвращает числовой балл для настроения"""
+        return cls._mood_to_score.get(mood.upper(), 3)  # 0 - значение по умолчанию
 # Модели Pydantic для валидации данных
 
 class UserBase(BaseModel):

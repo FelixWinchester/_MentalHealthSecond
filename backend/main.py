@@ -157,64 +157,6 @@ async def create_mood_entry(
 async def read_users_me(current_user: UserDB = Depends(get_current_user)):
     return current_user
 
-@app.get("/mood/{entry_id}", response_model=MoodEntryOut)
-async def get_mood_entry(
-    entry_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    # Получение записи
-    entry = await db.get(MoodEntry, entry_id)
-    
-    # Фиксация просмотра
-    view = MoodViewHistory(
-        user_id=current_user.id,
-        mood_entry_id=entry_id
-    )
-    db.add(view)
-    await db.commit()
-    await db.refresh(entry)
-    
-    # Добавление счетчика просмотров
-    entry.views_count = len(entry.views)
-    return entry
-
-
-# Получение статистики по настроениям
-@app.get("/analytics/moods")
-async def get_mood_analytics(
-    start_date: datetime,
-    end_date: datetime,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    result = await db.execute(
-        select(
-            MoodEntry.mood,
-            func.count(MoodEntry.id)
-        )
-        .where(MoodEntry.user_id == current_user.id)
-        .where(MoodEntry.timestamp.between(start_date, end_date))
-        .group_by(MoodEntry.mood)
-    )
-    return dict(result.all())
-
-@app.get("/history/views", response_model=list[MoodViewHistoryOut])
-async def get_view_history(
-    page: int = 1,
-    per_page: int = 20,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    result = await db.execute(
-        select(MoodViewHistory)
-        .where(MoodViewHistory.user_id == current_user.id)
-        .order_by(MoodViewHistory.viewed_at.desc())
-        .offset((page-1)*per_page)
-        .limit(per_page)
-    )
-    return result.scalars().all()
-
 # Новый эндпоинт: получение чарта настроения
 @app.get("/mood/chart", response_model=List[MoodChartPoint], tags=["Mood Chart"])
 async def get_mood_chart(
@@ -260,9 +202,7 @@ async def get_mood_chart(
         )
         for entry in mood_entries
     ]
-
-from models import MoodMap  # добавь импорт MoodMap
-
+    
 # Новый эндпоинт для выдачи вердикта по настроению
 @app.get("/mood/verdict", tags=["Mood Verdict"])
 async def get_mood_verdict(
@@ -321,6 +261,64 @@ async def get_mood_verdict(
         "average_mood": mood_avg,
         "verdict": verdict
     }
+
+@app.get("/mood/{entry_id}", response_model=MoodEntryOut)
+async def get_mood_entry(
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    # Получение записи
+    entry = await db.get(MoodEntry, entry_id)
+    
+    # Фиксация просмотра
+    view = MoodViewHistory(
+        user_id=current_user.id,
+        mood_entry_id=entry_id
+    )
+    db.add(view)
+    await db.commit()
+    await db.refresh(entry)
+    
+    # Добавление счетчика просмотров
+    entry.views_count = len(entry.views)
+    return entry
+
+
+# Получение статистики по настроениям
+@app.get("/analytics/moods")
+async def get_mood_analytics(
+    start_date: datetime,
+    end_date: datetime,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(
+            MoodEntry.mood,
+            func.count(MoodEntry.id)
+        )
+        .where(MoodEntry.user_id == current_user.id)
+        .where(MoodEntry.timestamp.between(start_date, end_date))
+        .group_by(MoodEntry.mood)
+    )
+    return dict(result.all())
+
+@app.get("/history/views", response_model=list[MoodViewHistoryOut])
+async def get_view_history(
+    page: int = 1,
+    per_page: int = 20,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    result = await db.execute(
+        select(MoodViewHistory)
+        .where(MoodViewHistory.user_id == current_user.id)
+        .order_by(MoodViewHistory.viewed_at.desc())
+        .offset((page-1)*per_page)
+        .limit(per_page)
+    )
+    return result.scalars().all()
 
 @app.get("/public")
 async def public():

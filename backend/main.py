@@ -14,7 +14,14 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"],  # Укажите домен вашего фронтенда
+    allow_origins=[
+        "http://10.7.0.11:8080",  # сервак
+        "http://localhost:8080",
+        "http://10.7.0.4:8080",  # Агарков
+        "http://10.7.0.12:8080",   # Козиков
+        "http://10.7.0.13:8080",   # Синельников
+        "http://10.7.0.14:8080",   # Тищенко
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

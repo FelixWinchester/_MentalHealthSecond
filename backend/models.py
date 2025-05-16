@@ -72,6 +72,12 @@ class UserDB(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
     
+
+    current_streak = Column(Integer, default=0)
+    longest_streak = Column(Integer, default=0)
+    last_entry_date = Column(DateTime)
+    total_entries = Column(Integer, default=0)
+    
     # Отношения
     moods = relationship("MoodEntry", back_populates="user", cascade="all, delete-orphan")
     view_history = relationship("MoodViewHistory", back_populates="user", cascade="all, delete-orphan")
@@ -90,6 +96,8 @@ class MoodEntry(Base):
     details = Column(String(500), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     
+
+
     # Отношения
     user = relationship("UserDB", back_populates="moods")
     views = relationship("MoodViewHistory", back_populates="mood_entry")
@@ -114,3 +122,18 @@ class MoodViewHistory(Base):
     __table_args__ = (
         Index('ix_view_history', "user_id", "viewed_at"),
     )
+
+class Achievement(Base):
+    __tablename__ = "achievements"
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50))
+    description = Column(String(255))
+    icon = Column(String(100))
+    condition = Column(String(50))  # Например: 'streak_7', 'entries_30'
+
+class UserAchievement(Base):
+    __tablename__ = "user_achievements"
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    achievement_id = Column(Integer, ForeignKey('achievements.id'), primary_key=True)
+    unlocked_at = Column(DateTime, default=datetime.utcnow)
+    achievement = relationship("Achievement")

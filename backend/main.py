@@ -2,13 +2,17 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, update, select  # Import select here
-from database import get_db, create_tables
-from models import MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
+from backend.achievements import AchievementService
+from database import AsyncSessionLocal, get_db, create_tables
+from models import Achievement, MoodViewHistoryOut, UserAchievement, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
 from auth import get_password_hash, create_access_token, verify_password, get_current_user
 from datetime import datetime, timedelta
 from typing import Optional
 import logging
 from fastapi.middleware.cors import CORSMiddleware
+
+
+
 
 app = FastAPI()
 
@@ -143,6 +147,26 @@ async def create_mood_entry(
     db: AsyncSession = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
+    # Обновляем стрик
+    today = datetime.utcnow().date()
+    last_entry = current_user.last_entry_date.date() if current_user.last_entry_date else None
+    
+    if last_entry == today:
+        raise HTTPException(status_code=400, detail="Entry already exists for today")
+    
+    if last_entry and (today - last_entry).days == 1:
+        current_user.current_streak += 1
+    else:
+        current_user.current_streak = 1
+
+    if current_user.current_streak > current_user.longest_streak:
+        current_user.longest_streak = current_user.current_streak
+
+    # Обновляем общее количество записей
+    current_user.total_entries += 1
+    current_user.last_entry_date = datetime.utcnow()
+
+    # Создаем запись
     new_entry = MoodEntry(
         user_id=current_user.id,
         mood=mood_entry.mood,
@@ -151,7 +175,15 @@ async def create_mood_entry(
     db.add(new_entry)
     await db.commit()
     await db.refresh(new_entry)
-    return new_entry
+
+    # Проверяем достижения
+    service = AchievementService(db)
+    unlocked = await service.check_achievements(current_user)
+
+    return {
+        "entry": new_entry,
+        "unlocked_achievements": [a.name for a in unlocked]
+    }
 
 @app.get("/me", response_model=User)
 async def read_users_me(current_user: UserDB = Depends(get_current_user)):
@@ -223,3 +255,78 @@ async def public():
 @app.get("/private")
 async def private(user: UserDB = Depends(get_current_user)):
     return {"message": f"Hello {user.username}", "email": user.email}
+
+
+@app.get("/achievements", response_model=list[Achievement])
+async def get_all_achievements(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Achievement))
+    return result.scalars().all()
+
+@app.get("/users/me/achievements", response_model=list[UserAchievement])
+async def get_user_achievements(
+    current_user: UserDB = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(UserAchievement)
+        .where(UserAchievement.user_id == current_user.id)
+        .order_by(UserAchievement.unlocked_at.desc())
+    )
+    return result.scalars().all()
+
+@app.get("/users/me/streak")
+async def get_streak_info(
+    current_user: UserDB = Depends(get_current_user)
+):
+    return {
+        "current_streak": current_user.current_streak,
+        "longest_streak": current_user.longest_streak,
+        "next_milestone": calculate_next_milestone(current_user.current_streak)
+    }
+
+def calculate_next_milestone(self, current: int):
+    milestones = [3, 7, 14, 30, 60, 90]
+    for m in milestones:
+        if current < m:
+            return {"days": m, "progress": current/m}
+    return None
+
+DEFAULT_ACHIEVEMENTS = [
+    Achievement(
+        name="Новичок",
+        description="Сделать первую запись",
+        icon="star",
+        condition="entries_1"
+    ),
+    Achievement(
+        name="Недельная серия",
+        description="7 дней подряд с записями",
+        icon="fire",
+        condition="streak_7"
+    ),
+    Achievement(
+        name="Месячник",
+        description="30 дней ведения дневника",
+        icon="calendar",
+        condition="entries_30"
+    )
+]
+
+@app.on_event("startup")
+async def startup():
+    # Создаем таблицы
+    await create_tables()
+    
+    # Добавляем дефолтные достижения
+    async with AsyncSessionLocal() as session:  # Используем фабрику сессий
+        try:
+            result = await session.execute(select(Achievement))
+            if not result.scalars().first():
+                session.add_all(DEFAULT_ACHIEVEMENTS)
+                await session.commit()
+                print("Default achievements added")
+        except Exception as e:
+            print(f"Error adding achievements: {str(e)}")
+            await session.rollback()
+        finally:
+            await session.close()

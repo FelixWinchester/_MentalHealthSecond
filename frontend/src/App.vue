@@ -18,7 +18,7 @@
 
     <!-- Подвал -->
     <footer class="footer">
-      <p>© 2023 Watermelon inc. Все права защищены.</p>
+      <p>© 2025 Watermelon inc. Все права защищены.</p>
     </footer>
   </div>
 </template>

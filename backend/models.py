@@ -11,12 +11,14 @@ Base = declarative_base()
 
 class MoodType(StrEnum):
     HAPPY = "happy"
-    SAD = "sad"
+    SATISFIED = "satisfied"
     ANGRY = "angry"
-    CALM = "calm"
-    TIRED = "tired"
     EXCITED = "excited"
-    ANXIOUS = "anxious"
+    JOYFUL = "joyful"
+    MISUNDERSTANDING = "misunderstanding"
+    WORRIED = "worried"
+    SAD = "sad"
+    DEPRESSED = "depressed"
     
 #класс для работы графика
 class MoodChartPoint(BaseModel):
@@ -29,13 +31,15 @@ class MoodChartPoint(BaseModel):
 
 class MoodMap:
     _mood_to_score = {
-        "HAPPY": 5,
-        "EXCITED": 5,
-        "CALM": 4,
-        "TIRED": 3,
-        "SAD": 2,
-        "ANXIOUS": 2,
-        "ANGRY": 1,
+        MoodType.HAPPY: 5,
+        MoodType.EXCITED: 5,
+        MoodType.SATISFIED: 4,
+        MoodType.JOYFUL: 4,
+        MoodType.MISUNDERSTANDING: 3,
+        MoodType.WORRIED: 3,
+        MoodType.SAD: 2,
+        MoodType.DEPRESSED: 1,
+        MoodType.ANGRY: 1,
     }
     
     @classmethod

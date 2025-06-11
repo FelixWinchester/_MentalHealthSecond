@@ -1,9 +1,16 @@
+from urllib import request
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, update, select  # Import select here
+<<<<<<< HEAD
 from database import get_db, create_tables
 from models import  MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
+=======
+# from achievements import AchievementService
+from database import AsyncSessionLocal, get_db, create_tables
+from models import Achievement, AchievementDB, MoodType, MoodViewHistoryOut, UserAchievementDB, UserAchievementOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
+>>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 from database import get_db, create_tables
 from models import MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory, MoodChartPoint, MoodMap
 from auth import get_password_hash, create_access_token, verify_password, get_current_user
@@ -13,15 +20,19 @@ import logging
 from fastapi.middleware.cors import CORSMiddleware
 
 
-
-
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
+<<<<<<< HEAD
     allow_origins=["http://localhost:8080",
                    "http://10.66.66.3:8080",
                    "http://10.66.66.8:8080"],  # Укажите домен вашего фронтенда
+=======
+    allow_origins=["http://10.66.66.8:8080",
+                   "http://10.66.66.5:8080",
+                   "http://localhost:8080"],  # Укажите домен вашего фронтенда
+>>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -150,35 +161,40 @@ async def create_mood_entry(
     db: AsyncSession = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    # Обновляем стрик
     today = datetime.utcnow().date()
     last_entry = current_user.last_entry_date.date() if current_user.last_entry_date else None
-    
+
     if last_entry == today:
         raise HTTPException(status_code=400, detail="Entry already exists for today")
-    
+
     if last_entry and (today - last_entry).days == 1:
-        current_user.current_streak += 1
+        current_user.current_streak = (current_user.current_streak or 0) + 1
     else:
         current_user.current_streak = 1
 
-    if current_user.current_streak > current_user.longest_streak:
+    if (current_user.current_streak or 0) > (current_user.longest_streak or 0):
         current_user.longest_streak = current_user.current_streak
 
-    # Обновляем общее количество записей
-    current_user.total_entries += 1
+    current_user.total_entries = (current_user.total_entries or 0) + 1
     current_user.last_entry_date = datetime.utcnow()
 
-    # Создаем запись
+    # Преобразуем строку настроения в MoodType enum
+    try:
+        mood_enum = MoodType(mood_entry.mood.lower())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid mood value")
+
     new_entry = MoodEntry(
         user_id=current_user.id,
-        mood=mood_entry.mood,
+        mood=mood_enum,
         details=mood_entry.details
     )
+
     db.add(new_entry)
     await db.commit()
     await db.refresh(new_entry)
 
+<<<<<<< HEAD
     # Проверяем достижения
     # service = AchievementService(db)
     # unlocked = await service.check_achievements(current_user)
@@ -187,6 +203,9 @@ async def create_mood_entry(
         "entry": new_entry
         #"unlocked_achievements": [a.name for a in unlocked]
     }
+=======
+    return new_entry
+>>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 
 @app.get("/me", response_model=User)
 async def read_users_me(current_user: UserDB = Depends(get_current_user)):
@@ -365,8 +384,17 @@ async def private(user: UserDB = Depends(get_current_user)):
     return {"message": f"Hello {user.username}", "email": user.email}
 
 
+<<<<<<< HEAD
 
 # @app.get("/achievements", response_model=List[AchievementOut])
+=======
+# @app.get("/achievements", response_model=list[Achievement])
+# async def get_all_achievements(db: AsyncSession = Depends(get_db)):
+#     result = await db.execute(select(Achievement))
+#     return result.scalars().all()
+
+# @app.get("/achievements", response_model=List[Achievement])
+>>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 # async def get_achievements(db: AsyncSession = Depends(get_db)):
 #     return db.query(AchievementDB).all()
 
@@ -401,6 +429,7 @@ async def private(user: UserDB = Depends(get_current_user)):
 #     return None
 
 # DEFAULT_ACHIEVEMENTS = [
+<<<<<<< HEAD
 #     AchievementDB(
 #         name="Новичок", description="Сделай первую запись в дневнике", icon="🌱", condition="entries_1"
 #     ),
@@ -410,6 +439,26 @@ async def private(user: UserDB = Depends(get_current_user)):
 #     AchievementDB(
 #         name="5 дней подряд", description="Веди дневник 5 дней подряд", icon="🔥", condition="streak_5"
 #     ),
+=======
+#     Achievement(
+#         name="Новичок",
+#         description="Сделать первую запись",
+#         icon="star",
+#         condition="entries_1"
+#     ),
+#     Achievement(
+#         name="Недельная серия",
+#         description="7 дней подряд с записями",
+#         icon="fire",
+#         condition="streak_7"
+#     ),
+#     Achievement(
+#         name="Месячник",
+#         description="30 дней ведения дневника",
+#         icon="calendar",
+#         condition="entries_30"
+#     )
+>>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 # ]
 
 # @app.on_event("startup")
@@ -420,7 +469,11 @@ async def private(user: UserDB = Depends(get_current_user)):
 #     # Добавляем дефолтные достижения
 #     async with AsyncSessionLocal() as session:  # Используем фабрику сессий
 #         try:
+<<<<<<< HEAD
 #             result = await session.execute(select(AchievementCreate))
+=======
+#             result = await session.execute(select(Achievement))
+>>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 #             if not result.scalars().first():
 #                 session.add_all(DEFAULT_ACHIEVEMENTS)
 #                 await session.commit()

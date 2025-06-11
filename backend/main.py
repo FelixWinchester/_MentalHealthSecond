@@ -2,9 +2,9 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Q
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, update, select  # Import select here
-from backend.achievements import AchievementService
+from achievements import AchievementService
 from database import AsyncSessionLocal, get_db, create_tables
-from models import Achievement, MoodViewHistoryOut, UserAchievement, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
+from models import Achievement, AchievementDB, MoodViewHistoryOut, UserAchievementDB, UserAchievementOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
 from database import get_db, create_tables
 from models import MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory, MoodChartPoint, MoodMap
 from auth import get_password_hash, create_access_token, verify_password, get_current_user
@@ -368,17 +368,22 @@ async def get_all_achievements(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Achievement))
     return result.scalars().all()
 
-@app.get("/users/me/achievements", response_model=list[UserAchievement])
+@app.get("/achievements", response_model=List[Achievement])
+async def get_achievements(db: AsyncSession = Depends(get_db)):
+    return db.query(AchievementDB).all()
+
+@app.get("/users/me/achievements", response_model=list[UserAchievementOut])
 async def get_user_achievements(
     current_user: UserDB = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(UserAchievement)
-        .where(UserAchievement.user_id == current_user.id)
-        .order_by(UserAchievement.unlocked_at.desc())
+        select(UserAchievementDB)
+        .where(UserAchievementDB.user_id == current_user.id)
+        .options(joinedload(UserAchievementDB.achievement))  # Eager load achievement # type: ignore
+        .order_by(UserAchievementDB.unlocked_at.desc())
     )
-    return result.scalars().all()
+    return result.unique().scalars().all()
 
 @app.get("/users/me/streak")
 async def get_streak_info(

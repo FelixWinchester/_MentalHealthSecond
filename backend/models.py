@@ -146,17 +146,37 @@ class MoodViewHistory(Base):
         Index('ix_view_history', "user_id", "viewed_at"),
     )
 
-class Achievement(Base):
+class AchievementBase(BaseModel):
+    name: str
+    description: str
+    icon: str
+    condition: str
+
+class Achievement(AchievementBase):
+    id: int
+
+    class Config:
+        from_attributes = True
+
+class UserAchievementOut(BaseModel):
+    achievement: Achievement
+    unlocked_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# SQLAlchemy Models (renamed)
+class AchievementDB(Base):
     __tablename__ = "achievements"
     id = Column(Integer, primary_key=True)
     name = Column(String(50))
     description = Column(String(255))
     icon = Column(String(100))
-    condition = Column(String(50))  # Например: 'streak_7', 'entries_30'
+    condition = Column(String(50))
 
-class UserAchievement(Base):
+class UserAchievementDB(Base):
     __tablename__ = "user_achievements"
     user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     achievement_id = Column(Integer, ForeignKey('achievements.id'), primary_key=True)
     unlocked_at = Column(DateTime, default=datetime.utcnow)
-    achievement = relationship("Achievement")
+    achievement = relationship("AchievementDB")

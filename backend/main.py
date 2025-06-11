@@ -2,9 +2,8 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Q
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, update, select  # Import select here
-from achievements import AchievementService
-from database import AsyncSessionLocal, get_db, create_tables
-from models import Achievement, AchievementDB, MoodViewHistoryOut, UserAchievementDB, UserAchievementOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
+from database import get_db, create_tables
+from models import  MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
 from database import get_db, create_tables
 from models import MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory, MoodChartPoint, MoodMap
 from auth import get_password_hash, create_access_token, verify_password, get_current_user
@@ -20,7 +19,9 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://10.7.0.13:8080"],  # Укажите домен вашего фронтенда
+    allow_origins=["http://localhost:8080",
+                   "http://10.66.66.3:8080",
+                   "http://10.66.66.8:8080"],  # Укажите домен вашего фронтенда
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -179,12 +180,12 @@ async def create_mood_entry(
     await db.refresh(new_entry)
 
     # Проверяем достижения
-    service = AchievementService(db)
-    unlocked = await service.check_achievements(current_user)
+    # service = AchievementService(db)
+    # unlocked = await service.check_achievements(current_user)
 
     return {
-        "entry": new_entry,
-        "unlocked_achievements": [a.name for a in unlocked]
+        "entry": new_entry
+        #"unlocked_achievements": [a.name for a in unlocked]
     }
 
 @app.get("/me", response_model=User)
@@ -232,7 +233,8 @@ async def get_mood_chart(
     return [
         MoodChartPoint(
             date=entry.timestamp,
-            mood=entry.mood
+            mood=entry.mood,
+            details=entry.details
         )
         for entry in mood_entries
     ]
@@ -363,81 +365,68 @@ async def private(user: UserDB = Depends(get_current_user)):
     return {"message": f"Hello {user.username}", "email": user.email}
 
 
-@app.get("/achievements", response_model=list[Achievement])
-async def get_all_achievements(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Achievement))
-    return result.scalars().all()
 
-@app.get("/achievements", response_model=List[Achievement])
-async def get_achievements(db: AsyncSession = Depends(get_db)):
-    return db.query(AchievementDB).all()
+# @app.get("/achievements", response_model=List[AchievementOut])
+# async def get_achievements(db: AsyncSession = Depends(get_db)):
+#     return db.query(AchievementDB).all()
 
-@app.get("/users/me/achievements", response_model=list[UserAchievementOut])
-async def get_user_achievements(
-    current_user: UserDB = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    result = await db.execute(
-        select(UserAchievementDB)
-        .where(UserAchievementDB.user_id == current_user.id)
-        .options(joinedload(UserAchievementDB.achievement))  # Eager load achievement # type: ignore
-        .order_by(UserAchievementDB.unlocked_at.desc())
-    )
-    return result.unique().scalars().all()
+# @app.get("/users/me/achievements", response_model=list[UserAchievementOut])
+# async def get_user_achievements(
+#     current_user: UserDB = Depends(get_current_user),
+#     db: AsyncSession = Depends(get_db)
+# ):
+#     result = await db.execute(
+#         select(UserAchievementDB)
+#         .where(UserAchievementDB.user_id == current_user.id)
+#         .options(joinedload(UserAchievementDB.achievement))  # Eager load achievement # type: ignore
+#         .order_by(UserAchievementDB.unlocked_at.desc())
+#     )
+#     return result.unique().scalars().all()
 
-@app.get("/users/me/streak")
-async def get_streak_info(
-    current_user: UserDB = Depends(get_current_user)
-):
-    return {
-        "current_streak": current_user.current_streak,
-        "longest_streak": current_user.longest_streak,
-        "next_milestone": calculate_next_milestone(current_user.current_streak)
-    }
+# @app.get("/users/me/streak")
+# async def get_streak_info(
+#     current_user: UserDB = Depends(get_current_user)
+# ):
+#     return {
+#         "current_streak": current_user.current_streak,
+#         "longest_streak": current_user.longest_streak,
+#         "next_milestone": calculate_next_milestone(current_user.current_streak)
+#     }
 
-def calculate_next_milestone(self, current: int):
-    milestones = [3, 7, 14, 30, 60, 90]
-    for m in milestones:
-        if current < m:
-            return {"days": m, "progress": current/m}
-    return None
+# def calculate_next_milestone(self, current: int):
+#     milestones = [3, 7, 14, 30, 60, 90]
+#     for m in milestones:
+#         if current < m:
+#             return {"days": m, "progress": current/m}
+#     return None
 
-DEFAULT_ACHIEVEMENTS = [
-    Achievement(
-        name="Новичок",
-        description="Сделать первую запись",
-        icon="star",
-        condition="entries_1"
-    ),
-    Achievement(
-        name="Недельная серия",
-        description="7 дней подряд с записями",
-        icon="fire",
-        condition="streak_7"
-    ),
-    Achievement(
-        name="Месячник",
-        description="30 дней ведения дневника",
-        icon="calendar",
-        condition="entries_30"
-    )
-]
+# DEFAULT_ACHIEVEMENTS = [
+#     AchievementDB(
+#         name="Новичок", description="Сделай первую запись в дневнике", icon="🌱", condition="entries_1"
+#     ),
+#     AchievementDB(
+#         name="Настроение: супер!", description="Отметь настроение 'Отличное'", icon="😄", condition="mood_happy"
+#     ),
+#     AchievementDB(
+#         name="5 дней подряд", description="Веди дневник 5 дней подряд", icon="🔥", condition="streak_5"
+#     ),
+# ]
 
-@app.on_event("startup")
-async def startup():
-    # Создаем таблицы
-    await create_tables()
+# @app.on_event("startup")
+# async def startup():
+#     # Создаем таблицы
+#     await create_tables()
     
-    # Добавляем дефолтные достижения
-    async with AsyncSessionLocal() as session:  # Используем фабрику сессий
-        try:
-            result = await session.execute(select(Achievement))
-            if not result.scalars().first():
-                session.add_all(DEFAULT_ACHIEVEMENTS)
-                await session.commit()
-                print("Default achievements added")
-        except Exception as e:
-            print(f"Error adding achievements: {str(e)}")
-            await session.rollback()
-        finally:
-            await session.close()
+#     # Добавляем дефолтные достижения
+#     async with AsyncSessionLocal() as session:  # Используем фабрику сессий
+#         try:
+#             result = await session.execute(select(AchievementCreate))
+#             if not result.scalars().first():
+#                 session.add_all(DEFAULT_ACHIEVEMENTS)
+#                 await session.commit()
+#                 print("Default achievements added")
+#         except Exception as e:
+#             print(f"Error adding achievements: {str(e)}")
+#             await session.rollback()
+#         finally:
+#             await session.close()

@@ -22,6 +22,7 @@ class MoodType(StrEnum):
 class MoodChartPoint(BaseModel):
     date: datetime
     mood: str
+    details: Optional[str]
 
     class Config:
         from_attributes = True
@@ -146,6 +147,7 @@ class MoodViewHistory(Base):
         Index('ix_view_history', "user_id", "viewed_at"),
     )
 
+
 class AchievementBase(BaseModel):
     name: str
     description: str
@@ -153,6 +155,15 @@ class AchievementBase(BaseModel):
     condition: str
 
 class Achievement(AchievementBase):
+    id: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+class AchievementCreate(AchievementBase):
+    pass
+
+class AchievementOut(AchievementBase):
     id: int
 
     class Config:

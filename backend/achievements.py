@@ -1,11 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-<<<<<<< HEAD
-from models import Achievement, UserAchievement, UserDB
-=======
 from models import Achievement, UserAchievementDB, UserDB
->>>>>>> b94bbcf1ce58ee0df3b3969d1a1340b4584d82df
 
 class AchievementService:
     def __init__(self, db: AsyncSession):

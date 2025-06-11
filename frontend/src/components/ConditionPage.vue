@@ -71,7 +71,7 @@ export default {
         { 
             id: 1, 
             name: 'Счастье', 
-            icon: require('@/assets/emojis/happy.svg'),
+            icon: require('@/assets/emojis/1-Photoroom.png'),
             code: '😀'
         },
         { 
@@ -121,7 +121,13 @@ export default {
             name: 'Злость', 
             icon: require('@/assets/emojis/angry.svg'),
             code: '😠'
-        }
+        },
+        { 
+            id: 10, 
+            name: 'ЧТА?', 
+            icon: require('@/assets/emojis/question.png'),
+            code: '😞'
+        },
       ],
       selectedEmoji: null
     };

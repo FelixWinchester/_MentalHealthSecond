@@ -96,10 +96,10 @@ class UserDB(Base):
     last_login = Column(DateTime, nullable=True)
     
 
-    current_streak = Column(Integer, default=0)
-    longest_streak = Column(Integer, default=0)
-    last_entry_date = Column(DateTime)
-    total_entries = Column(Integer, default=0)
+    # current_streak = Column(Integer, default=0)
+    # longest_streak = Column(Integer, default=0)
+    # last_entry_date = Column(DateTime)
+    # total_entries = Column(Integer, default=0)
     
     # Отношения
     moods = relationship("MoodEntry", back_populates="user", cascade="all, delete-orphan")

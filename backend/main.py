@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Q
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, update, select  # Import select here
-from backend.achievements import AchievementService
+from achievements import AchievementService
 from database import AsyncSessionLocal, get_db, create_tables
 from models import Achievement, MoodViewHistoryOut, UserAchievement, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
 from database import get_db, create_tables

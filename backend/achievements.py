@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.models import Achievement, UserAchievement, UserDB
+from models import Achievement, UserAchievement, UserDB
 
 class AchievementService:
     def __init__(self, db: AsyncSession):

@@ -17,7 +17,30 @@ class MoodType(StrEnum):
     TIRED = "tired"
     EXCITED = "excited"
     ANXIOUS = "anxious"
+    
+#класс для работы графика
+class MoodChartPoint(BaseModel):
+    date: datetime
+    mood: str
 
+    class Config:
+        from_attributes = True
+
+class MoodMap:
+    _mood_to_score = {
+        "HAPPY": 5,
+        "EXCITED": 5,
+        "CALM": 4,
+        "TIRED": 3,
+        "SAD": 2,
+        "ANXIOUS": 2,
+        "ANGRY": 1,
+    }
+    
+    @classmethod
+    def get_score(cls, mood: str) -> int:
+        """Возвращает числовой балл для настроения"""
+        return cls._mood_to_score.get(mood.upper(), 3)  # 0 - значение по умолчанию
 # Модели Pydantic для валидации данных
 
 class UserBase(BaseModel):

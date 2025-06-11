@@ -1,7 +1,11 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+<<<<<<< HEAD
 from models import Achievement, UserAchievement, UserDB
+=======
+from models import Achievement, UserAchievementDB, UserDB
+>>>>>>> b94bbcf1ce58ee0df3b3969d1a1340b4584d82df
 
 class AchievementService:
     def __init__(self, db: AsyncSession):
@@ -32,15 +36,15 @@ class AchievementService:
 
     async def is_unlocked(self, user: UserDB, achievement: Achievement):
         result = await self.db.execute(
-            select(UserAchievement).where(
-                UserAchievement.user_id == user.id,
-                UserAchievement.achievement_id == achievement.id
+            select(UserAchievementDB).where(
+                UserAchievementDB.user_id == user.id,
+                UserAchievementDB.achievement_id == achievement.id
             )
         )
         return result.scalar() is not None
 
     async def unlock_achievement(self, user: UserDB, achievement: Achievement):
-        user_achievement = UserAchievement(
+        user_achievement = UserAchievementDB(
             user_id=user.id,
             achievement_id=achievement.id
         )

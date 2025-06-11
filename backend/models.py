@@ -45,7 +45,13 @@ class MoodMap:
     @classmethod
     def get_score(cls, mood: str) -> int:
         """Возвращает числовой балл для настроения"""
-        return cls._mood_to_score.get(mood.upper(), 3)  # 0 - значение по умолчанию
+        try:
+            mood_enum = MoodType(mood.lower())
+        except ValueError:
+            return 3  # или любое значение по умолчанию
+
+        return cls._mood_to_score.get(mood_enum, 3)
+
 # Модели Pydantic для валидации данных
 
 class UserBase(BaseModel):

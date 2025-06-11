@@ -3,14 +3,9 @@ from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Q
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, update, select  # Import select here
-<<<<<<< HEAD
-from database import get_db, create_tables
-from models import  MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
-=======
 # from achievements import AchievementService
 from database import AsyncSessionLocal, get_db, create_tables
 from models import Achievement, AchievementDB, MoodType, MoodViewHistoryOut, UserAchievementDB, UserAchievementOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
->>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 from database import get_db, create_tables
 from models import MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory, MoodChartPoint, MoodMap
 from auth import get_password_hash, create_access_token, verify_password, get_current_user
@@ -19,20 +14,13 @@ from typing import Optional, List
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 
-
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-<<<<<<< HEAD
     allow_origins=["http://localhost:8080",
                    "http://10.66.66.3:8080",
                    "http://10.66.66.8:8080"],  # Укажите домен вашего фронтенда
-=======
-    allow_origins=["http://10.66.66.8:8080",
-                   "http://10.66.66.5:8080",
-                   "http://localhost:8080"],  # Укажите домен вашего фронтенда
->>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -194,18 +182,7 @@ async def create_mood_entry(
     await db.commit()
     await db.refresh(new_entry)
 
-<<<<<<< HEAD
-    # Проверяем достижения
-    # service = AchievementService(db)
-    # unlocked = await service.check_achievements(current_user)
-
-    return {
-        "entry": new_entry
-        #"unlocked_achievements": [a.name for a in unlocked]
-    }
-=======
     return new_entry
->>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 
 @app.get("/me", response_model=User)
 async def read_users_me(current_user: UserDB = Depends(get_current_user)):
@@ -313,7 +290,7 @@ async def get_mood_verdict(
         verdict = "Похоже, вы испытываете трудности. Рекомендуем обратиться за поддержкой."
 
     return {
-        "average_mood": mood_avg,
+        #"average_mood": mood_avg,
         "verdict": verdict
     }
 
@@ -384,17 +361,12 @@ async def private(user: UserDB = Depends(get_current_user)):
     return {"message": f"Hello {user.username}", "email": user.email}
 
 
-<<<<<<< HEAD
-
-# @app.get("/achievements", response_model=List[AchievementOut])
-=======
 # @app.get("/achievements", response_model=list[Achievement])
 # async def get_all_achievements(db: AsyncSession = Depends(get_db)):
 #     result = await db.execute(select(Achievement))
 #     return result.scalars().all()
 
 # @app.get("/achievements", response_model=List[Achievement])
->>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 # async def get_achievements(db: AsyncSession = Depends(get_db)):
 #     return db.query(AchievementDB).all()
 
@@ -429,17 +401,6 @@ async def private(user: UserDB = Depends(get_current_user)):
 #     return None
 
 # DEFAULT_ACHIEVEMENTS = [
-<<<<<<< HEAD
-#     AchievementDB(
-#         name="Новичок", description="Сделай первую запись в дневнике", icon="🌱", condition="entries_1"
-#     ),
-#     AchievementDB(
-#         name="Настроение: супер!", description="Отметь настроение 'Отличное'", icon="😄", condition="mood_happy"
-#     ),
-#     AchievementDB(
-#         name="5 дней подряд", description="Веди дневник 5 дней подряд", icon="🔥", condition="streak_5"
-#     ),
-=======
 #     Achievement(
 #         name="Новичок",
 #         description="Сделать первую запись",
@@ -458,7 +419,6 @@ async def private(user: UserDB = Depends(get_current_user)):
 #         icon="calendar",
 #         condition="entries_30"
 #     )
->>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 # ]
 
 # @app.on_event("startup")
@@ -469,11 +429,7 @@ async def private(user: UserDB = Depends(get_current_user)):
 #     # Добавляем дефолтные достижения
 #     async with AsyncSessionLocal() as session:  # Используем фабрику сессий
 #         try:
-<<<<<<< HEAD
-#             result = await session.execute(select(AchievementCreate))
-=======
 #             result = await session.execute(select(Achievement))
->>>>>>> f3bcd584c2dc08cd71ff003ee68ffd5ba8e383f4
 #             if not result.scalars().first():
 #                 session.add_all(DEFAULT_ACHIEVEMENTS)
 #                 await session.commit()

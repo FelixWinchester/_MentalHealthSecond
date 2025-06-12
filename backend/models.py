@@ -51,6 +51,18 @@ class MoodMap:
             return 3  # или любое значение по умолчанию
 
         return cls._mood_to_score.get(mood_enum, 3)
+    
+DAILY_QUESTIONS = [
+    "Что сегодня вызвало у тебя улыбку?",
+    "С каким чувством ты проснулся сегодня?",
+    "Что было самым сложным за день?",
+    "Как ты оцениваешь своё настроение от 1 до 5?",
+    "Что ты сделал для себя сегодня?"
+]
+
+class DialogAnswer(BaseModel):
+    answer: str
+
 
 # Модели Pydantic для валидации данных
 
@@ -115,6 +127,8 @@ class UserDB(Base):
     # Отношения
     moods = relationship("MoodEntry", back_populates="user", cascade="all, delete-orphan")
     view_history = relationship("MoodViewHistory", back_populates="user", cascade="all, delete-orphan")
+    dialog_messages = relationship("DialogMessage", back_populates="user", cascade="all, delete-orphan")
+
 
     __table_args__ = (
         Index('ix_user_email', "email"),
@@ -156,6 +170,18 @@ class MoodViewHistory(Base):
     __table_args__ = (
         Index('ix_view_history', "user_id", "viewed_at"),
     )
+
+class DialogMessage(Base):
+    __tablename__ = "dialog_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    sender = Column(String(10), nullable=False)  # 'system' или 'user'
+    text = Column(String, nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    # Отношения
+    user = relationship("UserDB", back_populates="dialog_messages")
 
 
 class AchievementBase(BaseModel):

@@ -21,7 +21,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:8080",
                    "http://10.66.66.3:8080",
-                   "http://10.66.66.8:8080"],  # Укажите домен вашего фронтенда
+                   "http://10.66.66.8:8080",
+                   "http://10.66.66.4:8080",
+                   "http://10.66.66.11:8080"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

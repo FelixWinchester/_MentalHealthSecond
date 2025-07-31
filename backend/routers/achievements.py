@@ -1,6 +1,6 @@
 import random
 from urllib import request
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import APIRouter, FastAPI, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, update, select  # Import select here
@@ -15,48 +15,7 @@ from typing import Optional, List
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import auth, user, mood, achievements, dialog
-
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:8080",
-                   "http://10.66.66.3:8080",
-                   "http://10.66.66.8:8080",
-                   "http://10.66.66.4:8080",
-                   "http://10.66.66.11:8080"],  
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Настройка логов
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Создание таблиц при запуске приложения
-@app.on_event("startup")
-async def startup():
-    await create_tables()
-
-app.include_router(auth.router)
-app.include_router(user.router)
-app.include_router(mood.router)
-app.include_router(achievements.router)
-app.include_router(dialog.router)
-
-
-
-
-# @app.get("/public")
-# async def public():
-#     return {"message": "Public endpoint works"}
-
-# @app.get("/private")
-# async def private(user: UserDB = Depends(get_current_user)):
-#     return {"message": f"Hello {user.username}", "email": user.email}
-
+router = APIRouter(prefix="/achievemments", tags=["achievemments"])
 
 # @app.get("/achievements", response_model=list[Achievement])
 # async def get_all_achievements(db: AsyncSession = Depends(get_db)):

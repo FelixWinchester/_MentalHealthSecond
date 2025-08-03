@@ -11,7 +11,7 @@ const apiClient = axios.create({
 
 export default {
   register(user) {
-    return apiClient.post('/register', user);
+    return apiClient.post('/auth/register', user);
   },
 
   login(user) {
@@ -19,7 +19,7 @@ export default {
     params.append('username', user.username);
     params.append('password', user.password);
 
-    return apiClient.post('/token', params, {
+    return apiClient.post('/auth/token', params, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
@@ -28,7 +28,7 @@ export default {
 
   async getUserInfo(token) {
     try {
-      const response = await apiClient.get('/me', {
+      const response = await apiClient.get('/users/me', {
         headers: {
           Authorization: `Bearer ${token}`,
         },

@@ -1,19 +1,13 @@
-import random
-from urllib import request
-from fastapi import APIRouter, FastAPI, Depends, HTTPException, status, UploadFile, File, Query
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, update, select  # Import select here
-# from achievements import AchievementService
 from database import AsyncSessionLocal, get_db, create_tables
-from models import DAILY_QUESTIONS, Achievement, AchievementDB, DialogAnswer, DialogMessage, MoodType, MoodViewHistoryOut, UserAchievementDB, UserAchievementOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
+from models import DAILY_QUESTIONS, MoodType, MoodViewHistoryOut, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
 from database import get_db, create_tables
-from models import MoodViewHistoryOut, UserCreate, User, Token, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory, MoodChartPoint, MoodMap
-from auth import get_password_hash, create_access_token, verify_password, get_current_user
-from datetime import datetime, timedelta
-from typing import Optional, List
-import logging
-from fastapi.middleware.cors import CORSMiddleware
+from models import MoodViewHistoryOut, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
+from auth import get_current_user
+from datetime import datetime
+from achievements import AchievementService
 
 
 router = APIRouter(prefix="/mood", tags=["mood"])
@@ -26,7 +20,7 @@ async def create_mood_entry(
     current_user: UserDB = Depends(get_current_user)
 ):
     today = datetime.utcnow().date()
-    last_entry = current_user.last_entry_date.date() if current_user.last_entry_date else None
+    last_entry = current_user.last_entry_date if current_user.last_entry_date else None
 
     if last_entry == today:
         raise HTTPException(status_code=400, detail="Entry already exists for today")
@@ -55,8 +49,13 @@ async def create_mood_entry(
     )
 
     db.add(new_entry)
+    await db.flush()
+    
+    achievement_service = AchievementService(db)
+    unlocked = await achievement_service.check_achievements(current_user)
     await db.commit()
-    await db.refresh(new_entry)
+    if unlocked:
+        print("Разблокированы достижения:", ", ".join(unlocked))
 
     return new_entry
 

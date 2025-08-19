@@ -14,9 +14,116 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import logging
 from fastapi.middleware.cors import CORSMiddleware
+from authlib.integrations.starlette_client import OAuth, OAuthError
+from starlette.requests import Request
+from starlette.responses import RedirectResponse, JSONResponse
+from config import settings
+
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 logger = logging.getLogger(__name__)
+
+oauth = OAuth()
+oauth.register(
+    name='google',
+    client_id=settings.GOOGLE_CLIENT_ID,
+    client_secret=settings.GOOGLE_CLIENT_SECRET,
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'},
+)
+
+@router.get("/google/login")
+async def login_google(request: Request):
+    # Генерируем URL для перенаправления на Google
+    redirect_uri = request.url_for('auth_google_callback')
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+@router.get("/google/callback")
+async def auth_google_callback(request: Request, db: AsyncSession = Depends(get_db)):
+    try:
+        # Получаем токен от Google
+        token = await oauth.google.authorize_access_token(request)
+    except OAuthError as error:
+        logger.error(f"OAuth error: {error}")
+        return JSONResponse({"error": "Authentication failed"}, status_code=400)
+    
+    # Получаем информацию о пользователе
+    userinfo = token.get('userinfo')
+    if not userinfo:
+        logger.error("No userinfo in token")
+        return JSONResponse({"error": "Authentication failed"}, status_code=400)
+    
+    # Извлекаем данные пользователя
+    email = userinfo.get('email')
+    name = userinfo.get('name')
+    google_id = userinfo.get('sub')
+    
+    if not email:
+        logger.error("No email in userinfo")
+        return JSONResponse({"error": "Email not provided by Google"}, status_code=400)
+    
+    # Проверяем, существует ли пользователь в нашей базе
+    result = await db.execute(select(UserDB).where(UserDB.email == email))
+    user = result.scalar()
+    
+    if not user:
+        # Создаем нового пользователя
+        username = email.split('@')[0]
+        # Убедимся, что имя пользователя уникально
+        counter = 1
+        original_username = username
+        while True:
+            result = await db.execute(select(UserDB).where(UserDB.username == username))
+            if not result.scalar():
+                break
+            username = f"{original_username}{counter}"
+            counter += 1
+        
+        user = UserDB(
+            username=username,
+            email=email,
+            google_id=google_id,
+            hashed_password=None,  # У пользователей OAuth нет пароля
+            is_oauth=True
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        logger.info(f"New user created via Google OAuth: {username}")
+    else:
+        # Обновляем google_id если его нет
+        if not user.google_id:
+            user.google_id = google_id
+            user.is_oauth = True
+            await db.commit()
+            await db.refresh(user)
+    
+    # Обновляем время последнего входа
+    user.last_login = datetime.utcnow()
+    await db.commit()
+    await db.refresh(user)
+    
+    # Создаем JWT токен для нашего приложения
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username},
+        expires_delta=access_token_expires
+    )
+    
+    frontend_url = "http://localhost:3000"  # Замените на URL вашего фронтенда
+    return RedirectResponse(
+        url=f"{frontend_url}/auth/callback?token={access_token}&user_id={user.id}"
+    )
+
+@router.get("/google/logout")
+async def logout_google():
+    response = RedirectResponse(url="/")
+    response.delete_cookie("access_token")
+    return response
+
+
+
 
 @router.post("/register", response_model=User)
 async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
@@ -91,3 +198,5 @@ async def login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error", 
         )
+
+

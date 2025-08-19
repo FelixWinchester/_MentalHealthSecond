@@ -118,7 +118,7 @@ class UserDB(Base):
     hashed_password = Column(String(256))
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
-    
+    google_id = Column(String, unique=True, index=True, nullable=True)
 
     current_streak = Column(Integer, default=0)
     longest_streak = Column(Integer, default=0)

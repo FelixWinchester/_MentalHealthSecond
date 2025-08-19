@@ -9,7 +9,16 @@ const apiClient = axios.create({
   },
 });
 
+apiClient.interceptors.request.use(config => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export default {
+  // Auth methods
   register(user) {
     return apiClient.post('/auth/register', user);
   },
@@ -46,5 +55,37 @@ export default {
         Authorization: `Bearer ${token}`,
       },
     });
+  },
+
+  // Mood methods
+  createMoodEntry(data) {
+    return apiClient.post('/mood', data);
+  },
+
+  getTodaysMood() {
+    return apiClient.get('/mood/today');
+  },
+
+  deleteMoodEntry() {
+    return apiClient.delete('/mood');
+  },
+
+  getMoodAnalytics(startDate, endDate) {
+    return apiClient.get('/mood/analytics/moods', {
+      params: { start_date: startDate, end_date: endDate }
+    });
+  },
+
+  // Notes methods
+  addNote(noteData) {
+    return apiClient.post('/mood/notes', noteData);
+  },
+
+  getNotes() {
+    return apiClient.get('/mood/notes');
+  },
+
+  deleteNote(noteId) {
+    return apiClient.delete(`/notes/${noteId}`);
   },
 };

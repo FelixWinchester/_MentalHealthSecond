@@ -5,6 +5,8 @@ from models import Achievement, UserAchievementDB, UserDB, AchievementDB
 
 from datetime import datetime
 
+from routers.notifications import create_notification
+
 class AchievementService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -58,3 +60,9 @@ class AchievementService:
         self.db.add(user_achievement)
         if commit:
             await self.db.commit()
+        
+        await create_notification(
+            self.db,
+            user.id,
+            f"Поздравляем! Вы получили достижение: {achievement.name}"
+        )

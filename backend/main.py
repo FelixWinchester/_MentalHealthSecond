@@ -15,7 +15,7 @@ from typing import Optional, List
 import logging
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import auth, user, mood, achievements, dialog
+from routers import auth, user, mood, achievements, dialog, notifications
 
 app = FastAPI()
 
@@ -27,7 +27,8 @@ app.add_middleware(
                    "http://10.66.66.4:8080",
                    "http://10.66.66.11:8080",
                     "http://192.168.109.97:8080",
-                    "http://192.168.0.105:8081"],
+                    "http://192.168.0.105:8081",
+                    "http://192.168.1.53:8080"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +48,7 @@ app.include_router(user.router)
 app.include_router(mood.router)
 app.include_router(achievements.router)
 app.include_router(dialog.router)
+app.include_router(notifications.router)
 
 default_achievements = [
     {"name": "Первая запись", "description": "Сделай первую запись", "icon": "🎉", "condition": "first_entry"},

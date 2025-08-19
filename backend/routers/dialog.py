@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 import logging
 from fastapi.middleware.cors import CORSMiddleware
+#from notifications import create_notification
 
 router = APIRouter(prefix="/dialog", tags=["dialog"])
 
@@ -40,6 +41,13 @@ async def get_daily_question(
     db.add(new_msg)
     await db.commit()
     await db.refresh(new_msg)
+    
+    # await create_notification(
+    #     db,
+    #     current_user.id,
+    #     f"У вас новый вопрос дня: {question}"
+    # )
+
 
     return {"question": new_msg.text}
 

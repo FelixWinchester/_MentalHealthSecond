@@ -9,6 +9,7 @@ from auth import get_current_user
 from datetime import datetime,date
 from achievements import AchievementService
 
+from routers.notifications import create_notification
 
 router = APIRouter(prefix="/mood", tags=["mood"])
 
@@ -74,6 +75,12 @@ async def create_or_update_mood_entry(
         current_user.total_entries = (current_user.total_entries or 0) + 1
         current_user.last_entry_date = today # Используем date, а не datetime
         # --- Конец логики для новой записи ---
+        
+        await create_notification(
+            db,
+            current_user.id,
+            "Вы успешно добавили запись о настроении!"
+        )
 
         new_entry = MoodEntry(
             user_id=current_user.id,

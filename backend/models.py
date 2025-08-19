@@ -2,7 +2,7 @@ from enum import StrEnum
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
-from sqlalchemy import Column, Enum, Index, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Enum, Index, Integer, String, DateTime, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -129,6 +129,7 @@ class UserDB(Base):
     moods = relationship("MoodEntry", back_populates="user", cascade="all, delete-orphan")
     view_history = relationship("MoodViewHistory", back_populates="user", cascade="all, delete-orphan")
     dialog_messages = relationship("DialogMessage", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("NotificationDB", back_populates="user", cascade="all, delete-orphan")
 
 
     __table_args__ = (
@@ -184,6 +185,18 @@ class DialogMessage(Base):
     # Отношения
     user = relationship("UserDB", back_populates="dialog_messages")
 
+class NotificationDB(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    message = Column(String(500), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False)
+
+    user = relationship("UserDB", back_populates="notifications")
+
+
 
 class AchievementBase(BaseModel):
     name: str
@@ -212,6 +225,16 @@ class UserAchievementOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class NotificationOut(BaseModel):
+    id: int
+    message: str
+    created_at: datetime
+    is_read: bool
+
+    class Config:
+        from_attributes = True
+
 
 # SQLAlchemy Models (renamed)
 class AchievementDB(Base):

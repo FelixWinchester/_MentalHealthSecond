@@ -1,6 +1,6 @@
 <div align = "center">
   
-# $${\color{lightgreen}Тип проекта: Стартап} $$ 
+# $${\color{lightgreen}Тип \space проекта: Стартап} $$ 
 ## $${\color{lightblue}Название: \space "Дневник \space ментального \space здоровья"} $$  
 ## $${\color{pink}Название \space команды: \space "Watermelon \space inc."} $$
 

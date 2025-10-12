@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <link rel="icon" href="<%= BASE_URL %>favicon.ico">
+    <title><%= htmlWebpackPlugin.options.title %></title>
+    
+    <style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+    /* Удаляем фоновый градиент с html, body */
+    background: #0f172a;
+    color: white;
+  }
+
+  .particles-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1; /* Самый нижний слой */
+  }
+  
+  .background-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2; /* Между частицами и контентом */
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 50%, rgba(51, 65, 85, 0.8) 100%);
+  }
+
+  #app {
+    min-height: 100%;
+    position: relative; /* Не fixed, чтобы можно было скроллить */
+    z-index: 3; /* Самый верхний слой */
+  }
+</style>
+  </head>
+  <body>
+    <noscript>
+      <strong>We're sorry but <%= htmlWebpackPlugin.options.title %> doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
+    </noscript>
+
+    <canvas id="particlesCanvas" class="particles-canvas"></canvas>
+    <div class="background-layer"></div>
+    <div id="app"></div>
+    <script>
+      const canvas = document.getElementById('particlesCanvas');
+      const ctx = canvas.getContext('2d');
+      let particles = [];
+      let animationFrame;
+
+      function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        createParticles();
+      }
+
+      function createParticles() {
+        particles = [];
+        const colors = ['#805AD5', '#3182CE', '#00B5D8'];
+        const particleCount = Math.min(60, Math.floor(window.innerWidth * window.innerHeight / 15000));
+        
+        for (let i = 0; i < particleCount; i++) {
+          particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            size: Math.random() * 2 + 1,
+            speedX: Math.random() * 1 - 0.5,
+            speedY: Math.random() * 1 - 0.5,
+            color: colors[Math.floor(Math.random() * colors.length)]
+          });
+        }
+      }
+
+      function animateParticles() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          
+          p.x += p.speedX;
+          p.y += p.speedY;
+          
+          if (p.x < 0 || p.x > canvas.width) p.speedX *= -1;
+          if (p.y < 0 || p.y > canvas.height) p.speedY *= -1;
+          
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.fill();
+          
+          for (let j = i + 1; j < particles.length; j++) {
+            const p2 = particles[j];
+            const dx = p.x - p2.x;
+            const dy = p.y - p2.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < 100) {
+              ctx.beginPath();
+              ctx.strokeStyle = `rgba(128, 90, 213, ${1 - distance/100})`;
+              ctx.lineWidth = 0.5;
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.stroke();
+            }
+          }
+        }
+        
+        animationFrame = requestAnimationFrame(animateParticles);
+      }
+      
+      // Инициализация
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+      animateParticles();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+asyncpg
+pydantic[email]
+python-jose
+passlib[bcrypt]
+python-multipart
+strenum

@@ -9,6 +9,7 @@ import sys
 import types
 import typing
 import warnings
+from collections.abc import Callable, Sequence
 
 
 # We use a UserWarning subclass, instead of DeprecationWarning, because CPython
@@ -21,11 +22,20 @@ class CryptographyDeprecationWarning(UserWarning):
 # ubiquity of their use. They should not be removed until we agree on when that
 # cycle ends.
 DeprecatedIn36 = CryptographyDeprecationWarning
-DeprecatedIn37 = CryptographyDeprecationWarning
 DeprecatedIn40 = CryptographyDeprecationWarning
 DeprecatedIn41 = CryptographyDeprecationWarning
 DeprecatedIn42 = CryptographyDeprecationWarning
 DeprecatedIn43 = CryptographyDeprecationWarning
+
+
+# If you're wondering why we don't use `Buffer`, it's because `Buffer` would
+# be more accurately named: Bufferable. It means something which has an
+# `__buffer__`. Which means you can't actually treat the result as a buffer
+# (and do things like take a `len()`).
+if sys.version_info >= (3, 9):
+    Buffer = typing.Union[bytes, bytearray, memoryview]
+else:
+    Buffer = typing.ByteString
 
 
 def _check_bytes(name: str, value: bytes) -> None:
@@ -33,7 +43,7 @@ def _check_bytes(name: str, value: bytes) -> None:
         raise TypeError(f"{name} must be bytes")
 
 
-def _check_byteslike(name: str, value: bytes) -> None:
+def _check_byteslike(name: str, value: Buffer) -> None:
     try:
         memoryview(value)
     except TypeError:
@@ -81,7 +91,7 @@ class _ModuleWithDeprecations(types.ModuleType):
 
         delattr(self._module, attr)
 
-    def __dir__(self) -> typing.Sequence[str]:
+    def __dir__(self) -> Sequence[str]:
         return ["_module", *dir(self._module)]
 
 
@@ -102,7 +112,7 @@ def deprecated(
     return dv
 
 
-def cached_property(func: typing.Callable) -> property:
+def cached_property(func: Callable) -> property:
     cached_name = f"_cached_{func}"
     sentinel = object()
 

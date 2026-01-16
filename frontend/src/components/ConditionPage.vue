@@ -229,7 +229,7 @@ export default {
       emojis: [
         { 
             id: 1, 
-            name: 'happy', 
+            name: 'HAPPY', 
             displayName: 'Счастье',
             icon: '/emojis/happy.png',
             code: '😀',
@@ -237,7 +237,7 @@ export default {
         },
         { 
             id: 2, 
-            name: 'excited',
+            name: 'EXCITED',
             displayName: 'Возбуждение', 
             icon: '/emojis/excited.png',
             code: '🤩',
@@ -245,7 +245,7 @@ export default {
         },
         { 
             id: 3, 
-            name: 'satisfied',
+            name: 'SATISFIED',
             displayName: 'Удовлетворение', 
             icon: '/emojis/satisfied.png',
             code: '😌',
@@ -253,7 +253,7 @@ export default {
         },
         { 
             id: 4, 
-            name: 'joyful', 
+            name: 'JOYFUL', 
             displayName: 'Радость',
             icon: '/emojis/joyful.png',
             code: '😊',
@@ -261,7 +261,7 @@ export default {
         },
         { 
             id: 5, 
-            name: 'misunderstanding', 
+            name: 'MISUNDERSTANDING', 
             displayName: 'Непонимание',
             icon: '/emojis/misunderstanding.png',
             code: '😐',
@@ -269,7 +269,7 @@ export default {
         },
         { 
             id: 6, 
-            name: 'worried', 
+            name: 'WORRIED', 
             displayName: 'Беспокойство',
             icon: '/emojis/worried.png',
             code: '😟',
@@ -277,7 +277,7 @@ export default {
         },
         { 
             id: 7, 
-            name: 'sad', 
+            name: 'SAD', 
             displayName: 'Грусть',
             icon: '/emojis/sad.png',
             code: '😢',
@@ -285,7 +285,7 @@ export default {
         },
         { 
             id: 8, 
-            name: 'depressed', 
+            name: 'DEPRESSED', 
             displayName: 'Уныние',
             icon: '/emojis/depressed.png',
             code: '😞',
@@ -293,7 +293,7 @@ export default {
         },
         { 
             id: 9, 
-            name: 'angry', 
+            name: 'ANGRY', 
             displayName: 'Злость',
             icon: '/emojis/angry.png',
             code: '😠',
@@ -341,15 +341,15 @@ export default {
   methods: {
     getEmojiDescription(emojiName) {
       const descriptions = {
-        'happy': 'Чувство радости и удовлетворения',
-        'excited': 'Энергичное ожидание и восторг',
-        'satisfied': 'Спокойное удовлетворение и гармония',
-        'joyful': 'Яркое чувство счастья и веселья',
-        'misunderstanding': 'Неопределенность и поиск ответов',
-        'worried': 'Тревога и беспокойство о будущем',
-        'sad': 'Грусть и легкая тоска',
-        'depressed': 'Глубокое уныние и подавленность',
-        'angry': 'Раздражение и злость'
+        'HAPPY': 'Чувство радости и удовлетворения',
+        'EXCITED': 'Энергичное ожидание и восторг',
+        'SATISFIED': 'Спокойное удовлетворение и гармония',
+        'JOYFUL': 'Яркое чувство счастья и веселья',
+        'MISUNDERSTANDING': 'Неопределенность и поиск ответов',
+        'WORRIED': 'Тревога и беспокойство о будущем',
+        'SAD': 'Грусть и легкая тоска',
+        'DEPRESSED': 'Глубокое уныние и подавленность',
+        'ANGRY': 'Раздражение и злость'
       };
       return descriptions[emojiName] || 'Выберите эмоцию для описания';
     },
@@ -377,7 +377,7 @@ export default {
         try {
             const notesResponse = await api.getNotes();
             this.notes = notesResponse.data.map(note => ({ 
-              text: note.text,
+              text: note.details,
               created_at: note.created_at 
             }));
 
@@ -414,34 +414,36 @@ export default {
     },
 
     async saveState() {
-    if (!this.selectedEmoji) {
-        alert('Пожалуйста, выберите эмоцию, чтобы сохранить состояние.');
-        return;
-    }
-
-    try {
-        const payload = {
-            mood: this.selectedEmoji.name.toLowerCase(),
-            details: this.newNote.trim()
-        };
-        
-        const response = await api.createMoodEntry(payload);
-        console.log('Сохранено успешно:', response.data); // ← использовать response
-        
-        if (this.newNote.trim()) {
-            this.notes.unshift({ 
-              text: this.newNote.trim(),
-              created_at: new Date().toISOString()
-            });
-            this.newNote = '';
+        if (!this.selectedEmoji) {
+            alert('Пожалуйста, выберите эмоцию.');
+            return;
         }
-        
-        this.showEmojiModal = false;
-        
-    } catch (error) {
-        console.error('Ошибка сохранения состояния:', error);
-        alert('Не удалось сохранить состояние. Пожалуйста, попробуйте еще раз.');
-    }
+
+        try {
+            const payload = {
+                // Отправляем как есть (на бэкенде ваш отладчик уже умеет кушать любой регистр)
+                mood: this.selectedEmoji.name, 
+                details: this.newNote.trim()
+            };
+            
+            await api.createMoodEntry(payload);
+            
+            // Если текст был введен, добавляем его в локальный список сразу
+            if (this.newNote.trim()) {
+                this.notes.unshift({ 
+                    text: this.newNote.trim(),
+                    created_at: new Date().toISOString()
+                });
+            }
+            
+            this.showEmojiModal = false;
+            // Можно вызвать fetchData(), чтобы синхронизировать всё с базой
+            // await this.fetchData(); 
+            
+        } catch (error) {
+            console.error('Ошибка сохранения:', error);
+            alert('Не удалось сохранить.');
+        }
 },
     
     async clearEmoji() {

@@ -59,33 +59,35 @@ export default {
 
   // Mood methods
   createMoodEntry(data) {
-    return apiClient.post('/mood', data);
+    // data может содержать { mood: 'HAPPY', details: 'Сегодня отличный день' }
+    return apiClient.post('/mood/', data);
   },
 
+  // Получить запись за сегодня (чтобы показать текущий статус)
   getTodaysMood() {
     return apiClient.get('/mood/today');
   },
 
-  deleteMoodEntry() {
-    return apiClient.delete('/mood');
-  },
-
-  getMoodAnalytics(startDate, endDate) {
-    return apiClient.get('/mood/analytics/moods', {
-      params: { start_date: startDate, end_date: endDate }
-    });
-  },
-
-  // Notes methods
-  addNote(noteData) {
-    return apiClient.post('/mood/notes', noteData);
-  },
-
+  // Получить ВСЕ записи пользователя (которые по сути и есть его заметки)
   getNotes() {
-    return apiClient.get('/mood/notes');
+    // Если у вас есть роут для получения истории/списка, используйте его.
+    // Если нет, обычно это GET запрос на базовый /mood/
+    return apiClient.get('/mood/'); 
   },
 
-  deleteNote(noteId) {
-    return apiClient.delete(`/notes/${noteId}`);
+  // Добавление "заметки" теперь делает то же самое, что и создание настроения
+  addNote(noteData) {
+    return apiClient.post('/mood/', noteData);
   },
+
+  // Удаление конкретной записи по ID
+  deleteNote(entryId) {
+    // Исправлено: добавляем /mood/ перед ID, если роут в бэкенде защищен префиксом
+    return apiClient.delete(`/mood/${entryId}`);
+  },
+  
+  // Получить конкретную запись по ID
+  getNoteById(entryId) {
+    return apiClient.get(`/mood/${entryId}`);
+  }
 };

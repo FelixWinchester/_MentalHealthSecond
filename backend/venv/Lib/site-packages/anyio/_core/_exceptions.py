@@ -23,7 +23,7 @@ class BrokenWorkerProcess(Exception):
     """
 
 
-class BrokenWorkerIntepreter(Exception):
+class BrokenWorkerInterpreter(Exception):
     """
     Raised by :meth:`~anyio.to_interpreter.run_sync` if an unexpected exception is
     raised in the subinterpreter.
@@ -72,6 +72,24 @@ class ClosedResourceError(Exception):
     """Raised when trying to use a resource that has been closed."""
 
 
+class ConnectionFailed(OSError):
+    """
+    Raised when a connection attempt fails.
+
+    .. note:: This class inherits from :exc:`OSError` for backwards compatibility.
+    """
+
+
+def iterate_exceptions(
+    exception: BaseException,
+) -> Generator[BaseException, None, None]:
+    if isinstance(exception, BaseExceptionGroup):
+        for exc in exception.exceptions:
+            yield from iterate_exceptions(exc)
+    else:
+        yield exception
+
+
 class DelimiterNotFound(Exception):
     """
     Raised during
@@ -116,11 +134,23 @@ class WouldBlock(Exception):
     """Raised by ``X_nowait`` functions if ``X()`` would block."""
 
 
-def iterate_exceptions(
-    exception: BaseException,
-) -> Generator[BaseException, None, None]:
-    if isinstance(exception, BaseExceptionGroup):
-        for exc in exception.exceptions:
-            yield from iterate_exceptions(exc)
-    else:
-        yield exception
+class NoEventLoopError(RuntimeError):
+    """
+    Raised by several functions that require an event loop to be running in the current
+    thread when there is no running event loop.
+
+    This is also raised by :func:`.from_thread.run` and :func:`.from_thread.run_sync`
+    if not calling from an AnyIO worker thread, and no ``token`` was passed.
+    """
+
+
+class RunFinishedError(RuntimeError):
+    """
+    Raised by :func:`.from_thread.run` and :func:`.from_thread.run_sync` if the event
+    loop associated with the explicitly passed token has already finished.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The event loop associated with the given token has already finished"
+        )

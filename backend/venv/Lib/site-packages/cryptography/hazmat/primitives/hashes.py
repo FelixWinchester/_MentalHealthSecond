@@ -7,6 +7,7 @@ from __future__ import annotations
 import abc
 
 from cryptography.hazmat.bindings._rust import openssl as rust_openssl
+from cryptography.utils import Buffer
 
 __all__ = [
     "MD5",
@@ -30,6 +31,7 @@ __all__ = [
     "Hash",
     "HashAlgorithm",
     "HashContext",
+    "XOFHash",
 ]
 
 
@@ -66,7 +68,7 @@ class HashContext(metaclass=abc.ABCMeta):
         """
 
     @abc.abstractmethod
-    def update(self, data: bytes) -> None:
+    def update(self, data: Buffer) -> None:
         """
         Processes the provided bytes through the hash.
         """
@@ -86,6 +88,8 @@ class HashContext(metaclass=abc.ABCMeta):
 
 Hash = rust_openssl.hashes.Hash
 HashContext.register(Hash)
+
+XOFHash = rust_openssl.hashes.XOFHash
 
 
 class ExtendableOutputFunction(metaclass=abc.ABCMeta):

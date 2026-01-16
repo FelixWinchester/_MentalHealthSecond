@@ -4,9 +4,12 @@
 # This module is part of asyncpg and is released under
 # the Apache 2.0 License: http://www.apache.org/licenses/LICENSE-2.0
 
+from __future__ import annotations
 
 import asyncio
+import configparser
 import collections
+from collections.abc import Callable
 import enum
 import functools
 import getpass
@@ -83,6 +86,9 @@ if _system == 'Windows':
     PGPASSFILE = 'pgpass.conf'
 else:
     PGPASSFILE = '.pgpass'
+
+
+PG_SERVICEFILE = '.pg_service.conf'
 
 
 def _read_password_file(passfile: pathlib.Path) \
@@ -166,13 +172,15 @@ def _read_password_from_pgpass(
 
 
 def _validate_port_spec(hosts, port):
-    if isinstance(port, list):
+    if isinstance(port, list) and len(port) > 1:
         # If there is a list of ports, its length must
         # match that of the host list.
         if len(port) != len(hosts):
             raise exceptions.ClientConfigurationError(
                 'could not match {} port numbers to {} hosts'.format(
                     len(port), len(hosts)))
+    elif isinstance(port, list) and len(port) == 1:
+        port = [port[0] for _ in range(len(hosts))]
     else:
         port = [port for _ in range(len(hosts))]
 
@@ -267,6 +275,7 @@ def _dot_postgresql_path(filename) -> typing.Optional[pathlib.Path]:
 
 def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                                 password, passfile, database, ssl,
+                                service, servicefile,
                                 direct_tls, server_settings,
                                 target_session_attrs, krbsrvname, gsslib):
     # `auth_hosts` is the version of host information for the purposes
@@ -278,6 +287,32 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
 
     if dsn:
         parsed = urllib.parse.urlparse(dsn)
+
+        query = None
+        if parsed.query:
+            query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
+            for key, val in query.items():
+                if isinstance(val, list):
+                    query[key] = val[-1]
+
+            if 'service' in query:
+                val = query.pop('service')
+                if not service and val:
+                    service = val
+
+        connection_service_file = servicefile
+
+        if connection_service_file is None:
+            connection_service_file = os.getenv('PGSERVICEFILE')
+
+        if connection_service_file is None:
+            homedir = compat.get_pg_home_directory()
+            if homedir:
+                connection_service_file = homedir / PG_SERVICEFILE
+            else:
+                connection_service_file = None
+        else:
+            connection_service_file = pathlib.Path(connection_service_file)
 
         if parsed.scheme not in {'postgresql', 'postgres'}:
             raise exceptions.ClientConfigurationError(
@@ -313,11 +348,7 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
         if password is None and dsn_password:
             password = urllib.parse.unquote(dsn_password)
 
-        if parsed.query:
-            query = urllib.parse.parse_qs(parsed.query, strict_parsing=True)
-            for key, val in query.items():
-                if isinstance(val, list):
-                    query[key] = val[-1]
+        if query:
 
             if 'port' in query:
                 val = query.pop('port')
@@ -404,12 +435,124 @@ def _parse_connect_dsn_and_args(*, dsn, host, port, user,
                 if gsslib is None:
                     gsslib = val
 
+            if 'service' in query:
+                val = query.pop('service')
+                if service is None:
+                    service = val
+
             if query:
                 if server_settings is None:
                     server_settings = query
                 else:
                     server_settings = {**query, **server_settings}
 
+        if connection_service_file is not None and service is not None:
+            pg_service = configparser.ConfigParser()
+            pg_service.read(connection_service_file)
+            if service in pg_service.sections():
+                service_params = pg_service[service]
+                if 'port' in service_params:
+                    val = service_params.pop('port')
+                    if not port and val:
+                        port = [int(p) for p in val.split(',')]
+
+                if 'host' in service_params:
+                    val = service_params.pop('host')
+                    if not host and val:
+                        host, port = _parse_hostlist(val, port)
+
+                if 'dbname' in service_params:
+                    val = service_params.pop('dbname')
+                    if database is None:
+                        database = val
+
+                if 'database' in service_params:
+                    val = service_params.pop('database')
+                    if database is None:
+                        database = val
+
+                if 'user' in service_params:
+                    val = service_params.pop('user')
+                    if user is None:
+                        user = val
+
+                if 'password' in service_params:
+                    val = service_params.pop('password')
+                    if password is None:
+                        password = val
+
+                if 'passfile' in service_params:
+                    val = service_params.pop('passfile')
+                    if passfile is None:
+                        passfile = val
+
+                if 'sslmode' in service_params:
+                    val = service_params.pop('sslmode')
+                    if ssl is None:
+                        ssl = val
+
+                if 'sslcert' in service_params:
+                    val = service_params.pop('sslcert')
+                    if sslcert is None:
+                        sslcert = val
+
+                if 'sslkey' in service_params:
+                    val = service_params.pop('sslkey')
+                    if sslkey is None:
+                        sslkey = val
+
+                if 'sslrootcert' in service_params:
+                    val = service_params.pop('sslrootcert')
+                    if sslrootcert is None:
+                        sslrootcert = val
+
+                if 'sslnegotiation' in service_params:
+                    val = service_params.pop('sslnegotiation')
+                    if sslnegotiation is None:
+                        sslnegotiation = val
+
+                if 'sslcrl' in service_params:
+                    val = service_params.pop('sslcrl')
+                    if sslcrl is None:
+                        sslcrl = val
+
+                if 'sslpassword' in service_params:
+                    val = service_params.pop('sslpassword')
+                    if sslpassword is None:
+                        sslpassword = val
+
+                if 'ssl_min_protocol_version' in service_params:
+                    val = service_params.pop(
+                        'ssl_min_protocol_version'
+                    )
+                    if ssl_min_protocol_version is None:
+                        ssl_min_protocol_version = val
+
+                if 'ssl_max_protocol_version' in service_params:
+                    val = service_params.pop(
+                        'ssl_max_protocol_version'
+                    )
+                    if ssl_max_protocol_version is None:
+                        ssl_max_protocol_version = val
+
+                if 'target_session_attrs' in service_params:
+                    dsn_target_session_attrs = service_params.pop(
+                        'target_session_attrs'
+                    )
+                    if target_session_attrs is None:
+                        target_session_attrs = dsn_target_session_attrs
+
+                if 'krbsrvname' in service_params:
+                    val = service_params.pop('krbsrvname')
+                    if krbsrvname is None:
+                        krbsrvname = val
+
+                if 'gsslib' in service_params:
+                    val = service_params.pop('gsslib')
+                    if gsslib is None:
+                        gsslib = val
+    if not service:
+        service = os.environ.get('PGSERVICE')
     if not host:
         hostspec = os.environ.get('PGHOST')
         if hostspec:
@@ -722,7 +865,8 @@ def _parse_connect_arguments(*, dsn, host, port, user, password, passfile,
                              max_cached_statement_lifetime,
                              max_cacheable_statement_size,
                              ssl, direct_tls, server_settings,
-                             target_session_attrs, krbsrvname, gsslib):
+                             target_session_attrs, krbsrvname, gsslib,
+                             service, servicefile):
     local_vars = locals()
     for var_name in {'max_cacheable_statement_size',
                      'max_cached_statement_lifetime',
@@ -752,7 +896,8 @@ def _parse_connect_arguments(*, dsn, host, port, user, password, passfile,
         direct_tls=direct_tls, database=database,
         server_settings=server_settings,
         target_session_attrs=target_session_attrs,
-        krbsrvname=krbsrvname, gsslib=gsslib)
+        krbsrvname=krbsrvname, gsslib=gsslib,
+        service=service, servicefile=servicefile)
 
     config = _ClientConfiguration(
         command_timeout=command_timeout,
@@ -764,14 +909,21 @@ def _parse_connect_arguments(*, dsn, host, port, user, password, passfile,
 
 
 class TLSUpgradeProto(asyncio.Protocol):
-    def __init__(self, loop, host, port, ssl_context, ssl_is_advisory):
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        host: str,
+        port: int,
+        ssl_context: ssl_module.SSLContext,
+        ssl_is_advisory: bool,
+    ) -> None:
         self.on_data = _create_future(loop)
         self.host = host
         self.port = port
         self.ssl_context = ssl_context
         self.ssl_is_advisory = ssl_is_advisory
 
-    def data_received(self, data):
+    def data_received(self, data: bytes) -> None:
         if data == b'S':
             self.on_data.set_result(True)
         elif (self.ssl_is_advisory and
@@ -789,15 +941,30 @@ class TLSUpgradeProto(asyncio.Protocol):
                     'rejected SSL upgrade'.format(
                         host=self.host, port=self.port)))
 
-    def connection_lost(self, exc):
+    def connection_lost(self, exc: typing.Optional[Exception]) -> None:
         if not self.on_data.done():
             if exc is None:
                 exc = ConnectionError('unexpected connection_lost() call')
             self.on_data.set_exception(exc)
 
 
-async def _create_ssl_connection(protocol_factory, host, port, *,
-                                 loop, ssl_context, ssl_is_advisory=False):
+_ProctolFactoryR = typing.TypeVar(
+    "_ProctolFactoryR", bound=asyncio.protocols.Protocol
+)
+
+
+async def _create_ssl_connection(
+    # TODO: The return type is a specific combination of subclasses of
+    # asyncio.protocols.Protocol that we can't express. For now, having the
+    # return type be dependent on signature of the factory is an improvement
+    protocol_factory: Callable[[], _ProctolFactoryR],
+    host: str,
+    port: int,
+    *,
+    loop: asyncio.AbstractEventLoop,
+    ssl_context: ssl_module.SSLContext,
+    ssl_is_advisory: bool = False,
+) -> typing.Tuple[asyncio.Transport, _ProctolFactoryR]:
 
     tr, pr = await loop.create_connection(
         lambda: TLSUpgradeProto(loop, host, port,
@@ -817,6 +984,7 @@ async def _create_ssl_connection(protocol_factory, host, port, *,
             try:
                 new_tr = await loop.start_tls(
                     tr, pr, ssl_context, server_hostname=host)
+                assert new_tr is not None
             except (Exception, asyncio.CancelledError):
                 tr.close()
                 raise
@@ -1044,30 +1212,36 @@ async def _connect(*, loop, connection_class, record_class, **kwargs):
     candidates = []
     chosen_connection = None
     last_error = None
-    for addr in addrs:
-        try:
-            conn = await _connect_addr(
-                addr=addr,
-                loop=loop,
-                params=params,
-                config=config,
-                connection_class=connection_class,
-                record_class=record_class,
-            )
-            candidates.append(conn)
-            if await _can_use_connection(conn, target_attr):
-                chosen_connection = conn
-                break
-        except OSError as ex:
-            last_error = ex
-    else:
-        if target_attr == SessionAttribute.prefer_standby and candidates:
-            chosen_connection = random.choice(candidates)
+    try:
+        for addr in addrs:
+            try:
+                conn = await _connect_addr(
+                    addr=addr,
+                    loop=loop,
+                    params=params,
+                    config=config,
+                    connection_class=connection_class,
+                    record_class=record_class,
+                )
+                candidates.append(conn)
+                if await _can_use_connection(conn, target_attr):
+                    chosen_connection = conn
+                    break
+            except OSError as ex:
+                last_error = ex
+        else:
+            if target_attr == SessionAttribute.prefer_standby and candidates:
+                chosen_connection = random.choice(candidates)
+    finally:
 
-    await asyncio.gather(
-        *(c.close() for c in candidates if c is not chosen_connection),
-        return_exceptions=True
-    )
+        async def _close_candidates(conns, chosen):
+            await asyncio.gather(
+                *(c.close() for c in conns if c is not chosen),
+                return_exceptions=True
+            )
+        if candidates:
+            asyncio.create_task(
+                _close_candidates(candidates, chosen_connection))
 
     if chosen_connection:
         return chosen_connection

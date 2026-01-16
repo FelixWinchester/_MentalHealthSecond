@@ -63,6 +63,12 @@ class RSAPrivateKey(metaclass=abc.ABCMeta):
         Returns the key serialized as bytes.
         """
 
+    @abc.abstractmethod
+    def __copy__(self) -> RSAPrivateKey:
+        """
+        Returns a copy.
+        """
+
 
 RSAPrivateKeyWithSerialization = RSAPrivateKey
 RSAPrivateKey.register(rust_openssl.rsa.RSAPrivateKey)
@@ -127,6 +133,12 @@ class RSAPublicKey(metaclass=abc.ABCMeta):
         Checks equality.
         """
 
+    @abc.abstractmethod
+    def __copy__(self) -> RSAPublicKey:
+        """
+        Returns a copy.
+        """
+
 
 RSAPublicKeyWithSerialization = RSAPublicKey
 RSAPublicKey.register(rust_openssl.rsa.RSAPublicKey)
@@ -172,6 +184,8 @@ def rsa_crt_iqmp(p: int, q: int) -> int:
     """
     Compute the CRT (q ** -1) % p value from RSA primes p and q.
     """
+    if p <= 1 or q <= 1:
+        raise ValueError("Values can't be <= 1")
     return _modinv(q, p)
 
 
@@ -180,6 +194,8 @@ def rsa_crt_dmp1(private_exponent: int, p: int) -> int:
     Compute the CRT private_exponent % (p - 1) value from the RSA
     private_exponent (d) and p.
     """
+    if private_exponent <= 1 or p <= 1:
+        raise ValueError("Values can't be <= 1")
     return private_exponent % (p - 1)
 
 
@@ -188,6 +204,8 @@ def rsa_crt_dmq1(private_exponent: int, q: int) -> int:
     Compute the CRT private_exponent % (q - 1) value from the RSA
     private_exponent (d) and q.
     """
+    if private_exponent <= 1 or q <= 1:
+        raise ValueError("Values can't be <= 1")
     return private_exponent % (q - 1)
 
 
@@ -208,6 +226,8 @@ def rsa_recover_private_exponent(e: int, p: int, q: int) -> int:
     #
     # TODO: Replace with lcm(p - 1, q - 1) once the minimum
     # supported Python version is >= 3.9.
+    if e <= 1 or p <= 1 or q <= 1:
+        raise ValueError("Values can't be <= 1")
     lambda_n = (p - 1) * (q - 1) // gcd(p - 1, q - 1)
     return _modinv(e, lambda_n)
 
@@ -223,6 +243,8 @@ def rsa_recover_prime_factors(n: int, e: int, d: int) -> tuple[int, int]:
     no more than two factors. This function is adapted from code in PyCrypto.
     """
     # reject invalid values early
+    if d <= 1 or e <= 1:
+        raise ValueError("d, e can't be <= 1")
     if 17 != pow(17, e * d, n):
         raise ValueError("n, d, e don't match")
     # See 8.2.2(i) in Handbook of Applied Cryptography.

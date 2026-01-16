@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+__all__ = (
+    "MemoryObjectReceiveStream",
+    "MemoryObjectSendStream",
+    "MemoryObjectStreamStatistics",
+)
+
 import warnings
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
@@ -34,7 +40,7 @@ class MemoryObjectStreamStatistics(NamedTuple):
 
 
 @dataclass(eq=False)
-class MemoryObjectItemReceiver(Generic[T_Item]):
+class _MemoryObjectItemReceiver(Generic[T_Item]):
     task_info: TaskInfo = field(init=False, default_factory=get_current_task)
     item: T_Item = field(init=False)
 
@@ -46,12 +52,12 @@ class MemoryObjectItemReceiver(Generic[T_Item]):
 
 
 @dataclass(eq=False)
-class MemoryObjectStreamState(Generic[T_Item]):
+class _MemoryObjectStreamState(Generic[T_Item]):
     max_buffer_size: float = field()
     buffer: deque[T_Item] = field(init=False, default_factory=deque)
     open_send_channels: int = field(init=False, default=0)
     open_receive_channels: int = field(init=False, default=0)
-    waiting_receivers: OrderedDict[Event, MemoryObjectItemReceiver[T_Item]] = field(
+    waiting_receivers: OrderedDict[Event, _MemoryObjectItemReceiver[T_Item]] = field(
         init=False, default_factory=OrderedDict
     )
     waiting_senders: OrderedDict[Event, T_Item] = field(
@@ -71,7 +77,7 @@ class MemoryObjectStreamState(Generic[T_Item]):
 
 @dataclass(eq=False)
 class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
-    _state: MemoryObjectStreamState[T_co]
+    _state: _MemoryObjectStreamState[T_co]
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
@@ -112,7 +118,7 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
         except WouldBlock:
             # Add ourselves in the queue
             receive_event = Event()
-            receiver = MemoryObjectItemReceiver[T_co]()
+            receiver = _MemoryObjectItemReceiver[T_co]()
             self._state.waiting_receivers[receive_event] = receiver
 
             try:
@@ -123,7 +129,7 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
             try:
                 return receiver.item
             except AttributeError:
-                raise EndOfStream
+                raise EndOfStream from None
 
     def clone(self) -> MemoryObjectReceiveStream[T_co]:
         """
@@ -183,13 +189,14 @@ class MemoryObjectReceiveStream(Generic[T_co], ObjectReceiveStream[T_co]):
             warnings.warn(
                 f"Unclosed <{self.__class__.__name__} at {id(self):x}>",
                 ResourceWarning,
+                stacklevel=1,
                 source=self,
             )
 
 
 @dataclass(eq=False)
 class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
-    _state: MemoryObjectStreamState[T_contra]
+    _state: _MemoryObjectStreamState[T_contra]
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
@@ -313,5 +320,6 @@ class MemoryObjectSendStream(Generic[T_contra], ObjectSendStream[T_contra]):
             warnings.warn(
                 f"Unclosed <{self.__class__.__name__} at {id(self):x}>",
                 ResourceWarning,
+                stacklevel=1,
                 source=self,
             )

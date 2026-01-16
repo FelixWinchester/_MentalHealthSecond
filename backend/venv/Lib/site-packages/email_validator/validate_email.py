@@ -1,7 +1,8 @@
 from typing import Optional, Union, TYPE_CHECKING
 import unicodedata
 
-from .exceptions_types import EmailSyntaxError, ValidatedEmail
+from .exceptions import EmailSyntaxError
+from .types import ValidatedEmail
 from .syntax import split_email, validate_email_local_part, validate_email_domain_name, validate_email_domain_literal, validate_email_length
 from .rfc_constants import CASE_INSENSITIVE_MAILBOX_NAMES
 
@@ -17,10 +18,11 @@ def validate_email(
     /,  # prior arguments are positional-only
     *,  # subsequent arguments are keyword-only
     allow_smtputf8: Optional[bool] = None,
-    allow_empty_local: bool = False,
+    allow_empty_local: Optional[bool] = None,
     allow_quoted_local: Optional[bool] = None,
     allow_domain_literal: Optional[bool] = None,
     allow_display_name: Optional[bool] = None,
+    strict: Optional[bool] = None,
     check_deliverability: Optional[bool] = None,
     test_environment: Optional[bool] = None,
     globally_deliverable: Optional[bool] = None,
@@ -34,16 +36,20 @@ def validate_email(
     """
 
     # Fill in default values of arguments.
-    from . import ALLOW_SMTPUTF8, ALLOW_QUOTED_LOCAL, ALLOW_DOMAIN_LITERAL, ALLOW_DISPLAY_NAME, \
-        GLOBALLY_DELIVERABLE, CHECK_DELIVERABILITY, TEST_ENVIRONMENT, DEFAULT_TIMEOUT
+    from . import ALLOW_SMTPUTF8, ALLOW_EMPTY_LOCAL, ALLOW_QUOTED_LOCAL, ALLOW_DOMAIN_LITERAL, ALLOW_DISPLAY_NAME, \
+        STRICT, GLOBALLY_DELIVERABLE, CHECK_DELIVERABILITY, TEST_ENVIRONMENT, DEFAULT_TIMEOUT
     if allow_smtputf8 is None:
         allow_smtputf8 = ALLOW_SMTPUTF8
+    if allow_empty_local is None:
+        allow_empty_local = ALLOW_EMPTY_LOCAL
     if allow_quoted_local is None:
         allow_quoted_local = ALLOW_QUOTED_LOCAL
     if allow_domain_literal is None:
         allow_domain_literal = ALLOW_DOMAIN_LITERAL
     if allow_display_name is None:
         allow_display_name = ALLOW_DISPLAY_NAME
+    if strict is None:
+        strict = STRICT
     if check_deliverability is None:
         check_deliverability = CHECK_DELIVERABILITY
     if test_environment is None:
@@ -53,14 +59,18 @@ def validate_email(
     if timeout is None and dns_resolver is None:
         timeout = DEFAULT_TIMEOUT
 
-    # Allow email to be a str or bytes instance. If bytes,
-    # it must be ASCII because that's how the bytes work
-    # on the wire with SMTP.
-    if not isinstance(email, str):
+    if isinstance(email, str):
+        pass
+    elif isinstance(email, bytes):
+        # Allow email to be a bytes instance as if it is what
+        # will be transmitted on the wire. But assume SMTPUTF8
+        # is unavailable, so it must be ASCII.
         try:
             email = email.decode("ascii")
         except ValueError as e:
             raise EmailSyntaxError("The email address is not valid ASCII.") from e
+    else:
+        raise TypeError("email must be str or bytes")
 
     # Split the address into the display name (or None), the local part
     # (before the @-sign), and the domain part (after the @-sign).
@@ -69,6 +79,14 @@ def validate_email(
     # part if the local part is quoted.
     display_name, local_part, domain_part, is_quoted_local_part \
         = split_email(email)
+
+    if display_name:
+        # UTS #39 3.3 Email Security Profiles for Identifiers requires
+        # display names (incorrectly called "quoted-string-part" there)
+        # to be NFC normalized. Since these are not a part of what we
+        # are really validating, we won't check that the input was NFC
+        # normalized, but we'll normalize in output.
+        display_name = unicodedata.normalize("NFC", display_name)
 
     # Collect return values in this instance.
     ret = ValidatedEmail()
@@ -84,7 +102,8 @@ def validate_email(
     local_part_info = validate_email_local_part(local_part,
                                                 allow_smtputf8=allow_smtputf8,
                                                 allow_empty_local=allow_empty_local,
-                                                quoted_local_part=is_quoted_local_part)
+                                                quoted_local_part=is_quoted_local_part,
+                                                strict=strict)
     ret.local_part = local_part_info["local_part"]
     ret.ascii_local_part = local_part_info["ascii_local_part"]
     ret.smtputf8 = local_part_info["smtputf8"]
@@ -92,13 +111,23 @@ def validate_email(
     # RFC 6532 section 3.1 says that Unicode NFC normalization should be applied,
     # so we'll return the NFC-normalized local part. Since the caller may use that
     # string in place of the original string, ensure it is also valid.
+    #
+    # UTS #39 3.3 Email Security Profiles for Identifiers requires local parts
+    # to be NFKC normalized, which loses some information in characters that can
+    # be decomposed. We might want to consider applying NFKC normalization, but
+    # we can't make the change easily because it would break database lookups
+    # for any caller that put a normalized address from a previous version of
+    # this library. (UTS #39 seems to require that the *input* be NKFC normalized
+    # and has other requirements that are hard to check without additional Unicode
+    # data, and I don't know whether the rules really apply in the wild.)
     normalized_local_part = unicodedata.normalize("NFC", ret.local_part)
     if normalized_local_part != ret.local_part:
         try:
             validate_email_local_part(normalized_local_part,
                                       allow_smtputf8=allow_smtputf8,
                                       allow_empty_local=allow_empty_local,
-                                      quoted_local_part=is_quoted_local_part)
+                                      quoted_local_part=is_quoted_local_part,
+                                      strict=strict)
         except EmailSyntaxError as e:
             raise EmailSyntaxError("After Unicode normalization: " + str(e)) from e
         ret.local_part = normalized_local_part

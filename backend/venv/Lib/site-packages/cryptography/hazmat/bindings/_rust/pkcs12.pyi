@@ -3,6 +3,7 @@
 # for complete details.
 
 import typing
+from collections.abc import Iterable
 
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
@@ -13,6 +14,7 @@ from cryptography.hazmat.primitives.serialization.pkcs12 import (
     PKCS12KeyAndCertificates,
     PKCS12PrivateKeyTypes,
 )
+from cryptography.utils import Buffer
 
 class PKCS12Certificate:
     def __init__(
@@ -24,8 +26,8 @@ class PKCS12Certificate:
     def certificate(self) -> x509.Certificate: ...
 
 def load_key_and_certificates(
-    data: bytes,
-    password: bytes | None,
+    data: Buffer,
+    password: Buffer | None,
     backend: typing.Any = None,
 ) -> tuple[
     PrivateKeyTypes | None,
@@ -37,10 +39,14 @@ def load_pkcs12(
     password: bytes | None,
     backend: typing.Any = None,
 ) -> PKCS12KeyAndCertificates: ...
+def serialize_java_truststore(
+    certs: Iterable[PKCS12Certificate],
+    encryption_algorithm: KeySerializationEncryption,
+) -> bytes: ...
 def serialize_key_and_certificates(
     name: bytes | None,
     key: PKCS12PrivateKeyTypes | None,
     cert: x509.Certificate | None,
-    cas: typing.Iterable[x509.Certificate | PKCS12Certificate] | None,
+    cas: Iterable[x509.Certificate | PKCS12Certificate] | None,
     encryption_algorithm: KeySerializationEncryption,
 ) -> bytes: ...

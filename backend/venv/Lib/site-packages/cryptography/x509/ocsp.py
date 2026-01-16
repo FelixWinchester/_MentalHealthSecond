@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import datetime
-import typing
+from collections.abc import Iterable
 
 from cryptography import utils, x509
 from cryptography.hazmat.bindings._rust import ocsp
@@ -13,11 +13,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.types import (
     CertificateIssuerPrivateKeyTypes,
 )
-from cryptography.x509.base import (
-    _EARLIEST_UTC_TIME,
-    _convert_to_naive_utc_time,
-    _reject_duplicate_extension,
-)
+from cryptography.x509.base import _reject_duplicate_extension
 
 
 class OCSPResponderEncoding(utils.Enum):
@@ -59,8 +55,8 @@ class OCSPCertStatus(utils.Enum):
 class _SingleResponse:
     def __init__(
         self,
-        cert: x509.Certificate,
-        issuer: x509.Certificate,
+        resp: tuple[x509.Certificate, x509.Certificate] | None,
+        resp_hash: tuple[bytes, bytes, int] | None,
         algorithm: hashes.HashAlgorithm,
         cert_status: OCSPCertStatus,
         this_update: datetime.datetime,
@@ -68,11 +64,6 @@ class _SingleResponse:
         revocation_time: datetime.datetime | None,
         revocation_reason: x509.ReasonFlags | None,
     ):
-        if not isinstance(cert, x509.Certificate) or not isinstance(
-            issuer, x509.Certificate
-        ):
-            raise TypeError("cert and issuer must be a Certificate")
-
         _verify_algorithm(algorithm)
         if not isinstance(this_update, datetime.datetime):
             raise TypeError("this_update must be a datetime object")
@@ -81,8 +72,8 @@ class _SingleResponse:
         ):
             raise TypeError("next_update must be a datetime object or None")
 
-        self._cert = cert
-        self._issuer = issuer
+        self._resp = resp
+        self._resp_hash = resp_hash
         self._algorithm = algorithm
         self._this_update = this_update
         self._next_update = next_update
@@ -105,13 +96,6 @@ class _SingleResponse:
         else:
             if not isinstance(revocation_time, datetime.datetime):
                 raise TypeError("revocation_time must be a datetime object")
-
-            revocation_time = _convert_to_naive_utc_time(revocation_time)
-            if revocation_time < _EARLIEST_UTC_TIME:
-                raise ValueError(
-                    "The revocation_time must be on or after"
-                    " 1950 January 1."
-                )
 
             if revocation_reason is not None and not isinstance(
                 revocation_reason, x509.ReasonFlags
@@ -243,9 +227,60 @@ class OCSPResponseBuilder:
         if self._response is not None:
             raise ValueError("Only one response per OCSPResponse.")
 
+        if not isinstance(cert, x509.Certificate) or not isinstance(
+            issuer, x509.Certificate
+        ):
+            raise TypeError("cert and issuer must be a Certificate")
+
         singleresp = _SingleResponse(
-            cert,
-            issuer,
+            (cert, issuer),
+            None,
+            algorithm,
+            cert_status,
+            this_update,
+            next_update,
+            revocation_time,
+            revocation_reason,
+        )
+        return OCSPResponseBuilder(
+            singleresp,
+            self._responder_id,
+            self._certs,
+            self._extensions,
+        )
+
+    def add_response_by_hash(
+        self,
+        issuer_name_hash: bytes,
+        issuer_key_hash: bytes,
+        serial_number: int,
+        algorithm: hashes.HashAlgorithm,
+        cert_status: OCSPCertStatus,
+        this_update: datetime.datetime,
+        next_update: datetime.datetime | None,
+        revocation_time: datetime.datetime | None,
+        revocation_reason: x509.ReasonFlags | None,
+    ) -> OCSPResponseBuilder:
+        if self._response is not None:
+            raise ValueError("Only one response per OCSPResponse.")
+
+        if not isinstance(serial_number, int):
+            raise TypeError("serial_number must be an integer")
+
+        utils._check_bytes("issuer_name_hash", issuer_name_hash)
+        utils._check_bytes("issuer_key_hash", issuer_key_hash)
+        _verify_algorithm(algorithm)
+        if algorithm.digest_size != len(
+            issuer_name_hash
+        ) or algorithm.digest_size != len(issuer_key_hash):
+            raise ValueError(
+                "issuer_name_hash and issuer_key_hash must be the same length "
+                "as the digest size of the algorithm"
+            )
+
+        singleresp = _SingleResponse(
+            None,
+            (issuer_name_hash, issuer_key_hash, serial_number),
             algorithm,
             cert_status,
             this_update,
@@ -280,7 +315,7 @@ class OCSPResponseBuilder:
         )
 
     def certificates(
-        self, certs: typing.Iterable[x509.Certificate]
+        self, certs: Iterable[x509.Certificate]
     ) -> OCSPResponseBuilder:
         if self._certs is not None:
             raise ValueError("certificates may only be set once")

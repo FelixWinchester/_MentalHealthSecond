@@ -9,6 +9,7 @@ import datetime
 import os
 import typing
 import warnings
+from collections.abc import Iterable
 
 from cryptography import utils
 from cryptography.hazmat.bindings._rust import x509 as rust_x509
@@ -131,7 +132,7 @@ class Attribute:
 class Attributes:
     def __init__(
         self,
-        attributes: typing.Iterable[Attribute],
+        attributes: Iterable[Attribute],
     ) -> None:
         self._attributes = list(attributes)
 
@@ -330,6 +331,7 @@ class CertificateSigningRequestBuilder:
         backend: typing.Any = None,
         *,
         rsa_padding: padding.PSS | padding.PKCS1v15 | None = None,
+        ecdsa_deterministic: bool | None = None,
     ) -> CertificateSigningRequest:
         """
         Signs the request using the requestor's private key.
@@ -343,8 +345,18 @@ class CertificateSigningRequestBuilder:
             if not isinstance(private_key, rsa.RSAPrivateKey):
                 raise TypeError("Padding is only supported for RSA keys")
 
+        if ecdsa_deterministic is not None:
+            if not isinstance(private_key, ec.EllipticCurvePrivateKey):
+                raise TypeError(
+                    "Deterministic ECDSA is only supported for EC keys"
+                )
+
         return rust_x509.create_x509_csr(
-            self, private_key, algorithm, rsa_padding
+            self,
+            private_key,
+            algorithm,
+            rsa_padding,
+            ecdsa_deterministic,
         )
 
 
@@ -510,8 +522,7 @@ class CertificateBuilder:
         time = _convert_to_naive_utc_time(time)
         if time < _EARLIEST_UTC_TIME:
             raise ValueError(
-                "The not valid after date must be on or after"
-                " 1950 January 1."
+                "The not valid after date must be on or after 1950 January 1."
             )
         if (
             self._not_valid_before is not None
@@ -560,6 +571,7 @@ class CertificateBuilder:
         backend: typing.Any = None,
         *,
         rsa_padding: padding.PSS | padding.PKCS1v15 | None = None,
+        ecdsa_deterministic: bool | None = None,
     ) -> Certificate:
         """
         Signs the certificate using the CA's private key.
@@ -588,8 +600,18 @@ class CertificateBuilder:
             if not isinstance(private_key, rsa.RSAPrivateKey):
                 raise TypeError("Padding is only supported for RSA keys")
 
+        if ecdsa_deterministic is not None:
+            if not isinstance(private_key, ec.EllipticCurvePrivateKey):
+                raise TypeError(
+                    "Deterministic ECDSA is only supported for EC keys"
+                )
+
         return rust_x509.create_x509_certificate(
-            self, private_key, algorithm, rsa_padding
+            self,
+            private_key,
+            algorithm,
+            rsa_padding,
+            ecdsa_deterministic,
         )
 
 
@@ -717,6 +739,7 @@ class CertificateRevocationListBuilder:
         backend: typing.Any = None,
         *,
         rsa_padding: padding.PSS | padding.PKCS1v15 | None = None,
+        ecdsa_deterministic: bool | None = None,
     ) -> CertificateRevocationList:
         if self._issuer_name is None:
             raise ValueError("A CRL must have an issuer name")
@@ -733,8 +756,18 @@ class CertificateRevocationListBuilder:
             if not isinstance(private_key, rsa.RSAPrivateKey):
                 raise TypeError("Padding is only supported for RSA keys")
 
+        if ecdsa_deterministic is not None:
+            if not isinstance(private_key, ec.EllipticCurvePrivateKey):
+                raise TypeError(
+                    "Deterministic ECDSA is only supported for EC keys"
+                )
+
         return rust_x509.create_x509_crl(
-            self, private_key, algorithm, rsa_padding
+            self,
+            private_key,
+            algorithm,
+            rsa_padding,
+            ecdsa_deterministic,
         )
 
 

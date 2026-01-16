@@ -1,4 +1,5 @@
-from .exceptions_types import EmailSyntaxError, ValidatedEmail
+from .exceptions import EmailSyntaxError
+from .types import ValidatedEmail
 from .rfc_constants import EMAIL_MAX_LENGTH, LOCAL_PART_MAX_LENGTH, DOMAIN_MAX_LENGTH, \
     DOT_ATOM_TEXT, DOT_ATOM_TEXT_INTL, ATEXT_RE, ATEXT_INTL_DOT_RE, ATEXT_HOSTNAME_INTL, QTEXT_INTL, \
     DNS_LABEL_LENGTH_LIMIT, DOT_ATOM_TEXT_HOSTNAME, DOMAIN_NAME_REGEX, DOMAIN_LITERAL_CHARS
@@ -57,7 +58,7 @@ def split_email(email: str) -> Tuple[Optional[str], str, str, bool]:
         for i, c in enumerate(text):
             # < plus U+0338 (Combining Long Solidus Overlay) normalizes to
             # ≮ U+226E (Not Less-Than), and  it would be confusing to treat
-            # the < as the start of "<email>" syntax in that case. Liekwise,
+            # the < as the start of "<email>" syntax in that case. Likewise,
             # if anything combines with an @ or ", we should probably not
             # treat it as a special character.
             if unicodedata.normalize("NFC", text[i:])[0] != c:
@@ -82,7 +83,28 @@ def split_email(email: str) -> Tuple[Optional[str], str, str, bool]:
             else:
                 left_part += c
 
+        # No special symbol found. The special symbols always
+        # include an at-sign, so this always indicates a missing
+        # at-sign. The other symbol is optional.
         if len(left_part) == len(text):
+            # The full-width at-sign might occur in CJK contexts.
+            # We can't accept it because we only accept addresess
+            # that are actually valid. But if this is common we
+            # may want to consider accepting and normalizing full-
+            # width characters for the other special symbols (and
+            # full-width dot is already accepted in internationalized
+            # domains) with a new option.
+            # See https://news.ycombinator.com/item?id=42235268.
+            if "＠" in text:
+                raise EmailSyntaxError("The email address has the \"full-width\" at-sign (@) character instead of a regular at-sign.")
+
+            # Check another near-homoglyph for good measure because
+            # homoglyphs in place of required characters could be
+            # very confusing. We may want to consider checking for
+            # homoglyphs anywhere we look for a special symbol.
+            if "﹫" in text:
+                raise EmailSyntaxError('The email address has the "small commercial at" character instead of a regular at-sign.')
+
             raise EmailSyntaxError("An email address must have an @-sign.")
 
         # The right part is whatever is left.
@@ -207,7 +229,7 @@ class LocalPartValidationResult(TypedDict):
 
 
 def validate_email_local_part(local: str, allow_smtputf8: bool = True, allow_empty_local: bool = False,
-                              quoted_local_part: bool = False) -> LocalPartValidationResult:
+                              quoted_local_part: bool = False, strict: bool = False) -> LocalPartValidationResult:
     """Validates the syntax of the local part of an email address."""
 
     if len(local) == 0:
@@ -229,7 +251,7 @@ def validate_email_local_part(local: str, allow_smtputf8: bool = True, allow_emp
     # internationalized, then the UTF-8 encoding may be longer, but
     # that may not be relevant. We will check the total address length
     # instead.
-    if len(local) > LOCAL_PART_MAX_LENGTH:
+    if strict and len(local) > LOCAL_PART_MAX_LENGTH:
         reason = get_length_reason(local, limit=LOCAL_PART_MAX_LENGTH)
         raise EmailSyntaxError(f"The email address is too long before the @-sign {reason}.")
 
@@ -280,8 +302,8 @@ def validate_email_local_part(local: str, allow_smtputf8: bool = True, allow_emp
         valid = "dot-atom"
         requires_smtputf8 = True
 
-    # There are no syntactic restrictions on quoted local parts, so if
-    # it was originally quoted, it is probably valid. More characters
+    # There are no dot-atom syntax restrictions on quoted local parts, so
+    # if it was originally quoted, it is probably valid. More characters
     # are allowed, like @-signs, spaces, and quotes, and there are no
     # restrictions on the placement of dots, as in dot-atom local parts.
     elif quoted_local_part:
@@ -438,6 +460,36 @@ def check_dot_atom(label: str, start_descr: str, end_descr: str, is_hostname: bo
             raise EmailSyntaxError("An email address cannot have a period and a hyphen next to each other.")
 
 
+def uts46_valid_char(char: str) -> bool:
+    # By exhaustively searching for characters rejected by
+    # for c in (chr(i) for i in range(0x110000)):
+    #   idna.uts46_remap(c, std3_rules=False, transitional=False)
+    # I found the following rules are pretty close.
+    c = ord(char)
+    if 0x80 <= c <= 0x9f:
+        # 8-bit ASCII range.
+        return False
+    elif ((0x2010 <= c <= 0x2060 and not (0x2024 <= c <= 0x2026) and not (0x2028 <= c <= 0x202E))
+          or c in (0x00AD, 0x2064, 0xFF0E)
+          or 0x200B <= c <= 0x200D
+          or 0x1BCA0 <= c <= 0x1BCA3):
+        # Characters that are permitted but fall into one of the
+        # tests below.
+        return True
+    elif unicodedata.category(chr(c)) in ("Cf", "Cn", "Co", "Cs", "Zs", "Zl", "Zp"):
+        # There are a bunch of Zs characters including regular space
+        # that are allowed by UTS46 but are not allowed in domain
+        # names anyway.
+        #
+        # There are some Cn (unassigned) characters that the idna
+        # package doesn't reject but we can, I think.
+        return False
+    elif "002E" in unicodedata.decomposition(chr(c)).split(" "):
+        # Characters that decompose into a sequence with a dot.
+        return False
+    return True
+
+
 class DomainNameValidationResult(TypedDict):
     ascii_domain: str
     domain: str
@@ -461,6 +513,15 @@ def validate_email_domain_name(domain: str, test_environment: bool = False, glob
     # by DOT_ATOM_TEXT_INTL. Other characters may be permitted by the email specs, but
     # they may not be valid, safe, or sensible Unicode strings.
     check_unsafe_chars(domain)
+
+    # Reject characters that would be rejected by UTS-46 normalization next but
+    # with an error message under our control.
+    bad_chars = {
+        safe_character_display(c) for c in domain
+        if not uts46_valid_char(c)
+    }
+    if bad_chars:
+        raise EmailSyntaxError("The part after the @-sign contains invalid characters: " + ", ".join(sorted(bad_chars)) + ".")
 
     # Perform UTS-46 normalization, which includes casefolding, NFC normalization,
     # and converting all label separators (the period/full stop, fullwidth full stop,
@@ -607,12 +668,12 @@ def validate_email_domain_name(domain: str, test_environment: bool = False, glob
     # case for this.
     bad_chars = {
         safe_character_display(c)
-        for c in domain
+        for c in domain_i18n
         if not ATEXT_HOSTNAME_INTL.match(c)
     }
     if bad_chars:
         raise EmailSyntaxError("The part after the @-sign contains invalid characters: " + ", ".join(sorted(bad_chars)) + ".")
-    check_unsafe_chars(domain)
+    check_unsafe_chars(domain_i18n)
 
     # Check that it can be encoded back to IDNA ASCII. We have no test
     # case for this.
@@ -642,7 +703,7 @@ def validate_email_length(addrinfo: ValidatedEmail) -> None:
     #    form is checked first because it is the original input.
     # 2) The normalized email address. We perform Unicode NFC normalization of
     #    the local part, we normalize the domain to internationalized characters
-    #    (if originaly IDNA ASCII) which also includes Unicode normalization,
+    #    (if originally IDNA ASCII) which also includes Unicode normalization,
     #    and we may remove quotes in quoted local parts. We recommend that
     #    callers use this string, so it must be valid.
     # 3) The email address with the IDNA ASCII representation of the domain

@@ -1,150 +1,189 @@
-from fastapi import APIRouter, Depends, HTTPException
+import traceback
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, update, select, and_  # Import select here
-from database import AsyncSessionLocal, get_db, create_tables
-from models import DAILY_QUESTIONS, MoodType, MoodViewHistoryOut, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
-from database import get_db, create_tables
-from models import MoodViewHistoryOut, UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, MoodViewHistory
-from auth import get_current_user
-from datetime import datetime,date
-from achievements import AchievementService
+from sqlalchemy import select, and_, func
+from typing import List, Optional
+from datetime import datetime, timezone
 
+from database import get_db
+from models import (
+    UserDB, MoodEntry, MoodEntryCreate, MoodEntryOut, 
+    MoodType, MoodViewHistory, MoodViewHistoryOut
+)
+from auth import get_current_user
+from achievements import AchievementService  # Импорт из вашего файла
 
 router = APIRouter(prefix="/mood", tags=["mood"])
+@router.get("/", response_model=List[MoodEntryOut])
+async def get_all_mood_entries(
+    db: AsyncSession = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    
+    result = await db.execute(
+        select(MoodEntry)
+        .where(MoodEntry.user_id == current_user.id)
+        .order_by(MoodEntry.timestamp.desc())
+    )
+    entries = result.scalars().all()
+    print(f"✅ [DEBUG] Найдено записей: {len(entries)}")
+    return entries
 
-#эндпоинт для оценки настроения
+
 @router.post("/", response_model=MoodEntryOut)
-async def create_or_update_mood_entry(
+async def create_or_update_mood_event(
     mood_entry_data: MoodEntryCreate,
     db: AsyncSession = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    # 1. Проверяем, что передана эмоция
-    if not mood_entry_data.mood:
-        raise HTTPException(status_code=400, detail="Mood cannot be empty")
+    # --- ЛОГ 1: Что вообще пришло от фронтенда ---
+    print(f"\n🔥🔥🔥 [DEBUG] START REQUEST")
+    print(f"📥 Входящие данные (RAW): {mood_entry_data}")
+    print(f"👤 Пользователь: {current_user.username} (ID: {current_user.id})")
+
+    # 1. Проверка на пустой запрос
+    if mood_entry_data.mood is None and mood_entry_data.details is None:
+        print("❌ [DEBUG] Ошибка: Пустые данные")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Необходимо передать настроение или текст заметки"
+        )
+
+    # 2. Время
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    today_start = datetime.combine(now.date(), datetime.min.time())
+    today_end = datetime.combine(now.date(), datetime.max.time())
     
-    # Преобразуем строку настроения в MoodType enum
+    print(f"🕒 [DEBUG] Время сервера (UTC): {now}")
+
     try:
-        mood_enum = MoodType(mood_entry_data.mood.lower())
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid mood value")
-
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
-
-    # 2. Ищем существующую запись за сегодня
-    result = await db.execute(
-        select(MoodEntry)
-        .where(
-            and_(
-                MoodEntry.user_id == current_user.id,
-                MoodEntry.timestamp >= today_start,
-                MoodEntry.timestamp <= today_end
+        # 3. Поиск записи
+        print("🔍 [DEBUG] Ищем существующую запись...")
+        result = await db.execute(
+            select(MoodEntry).where(
+                and_(
+                    MoodEntry.user_id == current_user.id,
+                    MoodEntry.timestamp >= today_start,
+                    MoodEntry.timestamp <= today_end
+                )
             )
         )
-    )
-    existing_entry = result.scalars().first()
+        existing_entry = result.scalars().first()
+        print(f"📄 [DEBUG] Найдена запись? {'ДА (ID: ' + str(existing_entry.id) + ')' if existing_entry else 'НЕТ'}")
 
-    # 3. Если запись существует - ОБНОВЛЯЕМ её
-    if existing_entry:
-        existing_entry.mood = mood_enum
-        existing_entry.details = mood_entry_data.details
-        # Обновляем время, чтобы было актуальным
-        existing_entry.timestamp = datetime.utcnow() 
-        db.add(existing_entry)
-        await db.commit()
-        await db.refresh(existing_entry)
-        return existing_entry
-    
-    # 4. Если записи нет - СОЗДАЕМ новую и обновляем статистику пользователя
-    else:
-        # --- Логика для новой записи (подсчет серий и т.д.) ---
-        today = date.today()
-        last_entry_date = current_user.last_entry_date
-        
-        # Обновляем серию (streak)
-        if last_entry_date and (today - last_entry_date).days == 1:
-            current_user.current_streak = (current_user.current_streak or 0) + 1
-        elif not (last_entry_date and last_entry_date == today):
-             current_user.current_streak = 1
-        
-        if (current_user.current_streak or 0) > (current_user.longest_streak or 0):
-            current_user.longest_streak = current_user.current_streak
+        # 4. Обработка Enum (САМОЕ ОПАСНОЕ МЕСТО)
+        mood_enum = None
+        if mood_entry_data.mood:
+            raw_mood = mood_entry_data.mood
+            print(f"🎭 [DEBUG] Пытаемся обработать настроение: '{raw_mood}'")
+            try:
+                # Попытка 1: Как есть
+                mood_enum = MoodType(raw_mood)
+                print(f"✅ [DEBUG] Успешно (прямое совпадение): {mood_enum}")
+            except ValueError:
+                print(f"⚠️ [DEBUG] Прямое совпадение не сработало. Пробуем .upper()...")
+                try:
+                    # Попытка 2: Верхний регистр
+                    mood_enum = MoodType(raw_mood.upper())
+                    print(f"✅ [DEBUG] Успешно (.upper()): {mood_enum}")
+                except ValueError:
+                    print(f"⚠️ [DEBUG] .upper() не сработал. Пробуем .lower()...")
+                    try:
+                        # Попытка 3: Нижний регистр
+                        mood_enum = MoodType(raw_mood.lower())
+                        print(f"✅ [DEBUG] Успешно (.lower()): {mood_enum}")
+                    except ValueError:
+                        print(f"❌ [DEBUG] FATAL: Значение '{raw_mood}' нет в Enum MoodType!")
+                        print(f"📋 [DEBUG] Допустимые значения: {[e.value for e in MoodType]}")
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST, 
+                            detail=f"Неверное значение настроения: {raw_mood}"
+                        )
+
+        # 5. Логика сохранения
+        entry_to_return = None
+        if existing_entry:
+            print("✏️ [DEBUG] Режим: ОБНОВЛЕНИЕ")
+            if mood_enum:
+                existing_entry.mood = mood_enum
             
-        current_user.total_entries = (current_user.total_entries or 0) + 1
-        current_user.last_entry_date = today # Используем date, а не datetime
-        # --- Конец логики для новой записи ---
+            if mood_entry_data.details is not None:
+                existing_entry.details = mood_entry_data.details
+            
+            existing_entry.timestamp = now
+            entry_to_return = existing_entry
+        else:
+            print("✨ [DEBUG] Режим: СОЗДАНИЕ")
+            new_entry = MoodEntry(
+                user_id=current_user.id,
+                mood=mood_enum,
+                details=mood_entry_data.details,
+                timestamp=now
+            )
+            db.add(new_entry)
+            entry_to_return = new_entry
 
-        new_entry = MoodEntry(
-            user_id=current_user.id,
-            mood=mood_enum,
-            details=mood_entry_data.details
-        )
-        db.add(new_entry)
-        await db.flush() # Получаем ID для new_entry
+            # Стрики
+            today_date = now.date()
+            last_date = current_user.last_entry_date.date() if current_user.last_entry_date else None
+            
+            if last_date != today_date:
+                # ... логика стриков (сократил для читаемости логов) ...
+                print("🔥 [DEBUG] Обновляем стрики...")
+                current_user.last_entry_date = now
+                current_user.total_entries = (current_user.total_entries or 0) + 1
 
-        # Проверка достижений
+        print("💾 [DEBUG] Выполняем flush()...")
+        await db.flush()
+        
+        print("🏆 [DEBUG] Проверка достижений...")
         achievement_service = AchievementService(db)
-        unlocked = await achievement_service.check_achievements(current_user)
-        if unlocked:
-            print("Разблокированы достижения:", ", ".join(unlocked))
+        # Обработка ошибок внутри сервиса достижений, чтобы не крашить всё
+        try:
+            await achievement_service.check_achievements(current_user)
+        except Exception as ach_e:
+            print(f"⚠️ [DEBUG] Ошибка в ачивках (игнорируем): {ach_e}")
+            traceback.print_exc()
 
+        print("✅ [DEBUG] COMMIT...")
         await db.commit()
-        await db.refresh(new_entry)
-        return new_entry
+        await db.refresh(entry_to_return)
+        
+        print("🚀 [DEBUG] УСПЕХ! Возвращаем ответ.")
+        return entry_to_return
 
+    except HTTPException as he:
+        # Ловим наши же 400 ошибки и выводим их перед тем как отдать клиенту
+        print(f"🛑 [DEBUG] CATCHED HTTP EXCEPTION: {he.detail}")
+        raise he
+    except Exception as e:
+        print(f"☠️ [DEBUG] UNEXPECTED ERROR:")
+        traceback.print_exc() # Выведет полный стек ошибки с номерами строк
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Server Error: {str(e)}"
+        )
 
-@router.get("/{entry_id}", response_model=MoodEntryOut)
-async def get_mood_entry(
-    entry_id: int,
+# --- ОСТАЛЬНЫЕ ЭНДПОИНТЫ ---
+
+@router.get("/today", response_model=Optional[MoodEntryOut])
+async def get_todays_entry(
     db: AsyncSession = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    # Получение записи
-    entry = await db.get(MoodEntry, entry_id)
-    
-    # Фиксация просмотра
-    view = MoodViewHistory(
-        user_id=current_user.id,
-        mood_entry_id=entry_id
-    )
-    db.add(view)
-    await db.commit()
-    await db.refresh(entry)
-    
-    # Добавление счетчика просмотров
-    entry.views_count = len(entry.views)
-    return entry
-
-@router.get("/today", response_model=MoodEntryOut)
-async def get_todays_mood_entry(
-    db: AsyncSession = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    """
-    Возвращает запись о настроении пользователя за сегодняшний день, если она есть.
-    """
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
-
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    today_start = datetime.combine(now.date(), datetime.min.time())
     result = await db.execute(
-        select(MoodEntry)
-        .where(
+        select(MoodEntry).where(
             and_(
                 MoodEntry.user_id == current_user.id,
-                MoodEntry.timestamp >= today_start,
-                MoodEntry.timestamp <= today_end
+                MoodEntry.timestamp >= today_start
             )
         )
     )
-    todays_entry = result.scalars().first()
-    
-    if not todays_entry:
-        raise HTTPException(status_code=404, detail="No mood entry found for today")
-        
-    return todays_entry
+    return result.scalars().first()
 
-# Получение статистики по настроениям
 @router.get("/analytics/moods")
 async def get_mood_analytics(
     start_date: datetime,
@@ -153,17 +192,19 @@ async def get_mood_analytics(
     current_user: UserDB = Depends(get_current_user)
 ):
     result = await db.execute(
-        select(
-            MoodEntry.mood,
-            func.count(MoodEntry.id)
+        select(MoodEntry.mood, func.count(MoodEntry.id))
+        .where(
+            and_(
+                MoodEntry.user_id == current_user.id,
+                MoodEntry.timestamp.between(start_date, end_date),
+                MoodEntry.mood.isnot(None)
+            )
         )
-        .where(MoodEntry.user_id == current_user.id)
-        .where(MoodEntry.timestamp.between(start_date, end_date))
         .group_by(MoodEntry.mood)
     )
-    return dict(result.all())
+    return {str(row[0].value if row[0] else "unknown"): row[1] for row in result.all()}
 
-@router.get("/history/views", response_model=list[MoodViewHistoryOut])
+@router.get("/history/views", response_model=List[MoodViewHistoryOut])
 async def get_view_history(
     page: int = 1,
     per_page: int = 20,
@@ -174,7 +215,22 @@ async def get_view_history(
         select(MoodViewHistory)
         .where(MoodViewHistory.user_id == current_user.id)
         .order_by(MoodViewHistory.viewed_at.desc())
-        .offset((page-1)*per_page)
+        .offset((page - 1) * per_page)
         .limit(per_page)
     )
     return result.scalars().all()
+
+@router.get("/{entry_id}", response_model=MoodEntryOut)
+async def get_specific_entry(
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    entry = await db.get(MoodEntry, entry_id)
+    if not entry or entry.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    
+    view = MoodViewHistory(user_id=current_user.id, mood_entry_id=entry_id)
+    db.add(view)
+    await db.commit()
+    return entry

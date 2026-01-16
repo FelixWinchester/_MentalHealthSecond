@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from models import Base
 
 # Настройка подключения к PostgreSQL
-SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://postgres:1234@localhost:5432/postgres"
+SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://postgres:botya1102@localhost:5432/postgres"
 #SQLALCHEMY_DATABASE_URL = "postgresql+asyncpg://mental_user:9xErr3ms7R0m0P1F@46.37.123.171:5432/mental_db"
 
 # Создаем асинхронный движок

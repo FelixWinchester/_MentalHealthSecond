@@ -5,9 +5,10 @@
 import typing
 
 from cryptography.hazmat.primitives.hashes import HashAlgorithm
+from cryptography.utils import Buffer
 
 def derive_pbkdf2_hmac(
-    key_material: bytes,
+    key_material: Buffer,
     algorithm: HashAlgorithm,
     salt: bytes,
     iterations: int,
@@ -24,7 +25,7 @@ class Scrypt:
         p: int,
         backend: typing.Any = None,
     ) -> None: ...
-    def derive(self, key_material: bytes) -> bytes: ...
+    def derive(self, key_material: Buffer) -> bytes: ...
     def verify(self, key_material: bytes, expected_key: bytes) -> None: ...
 
 class Argon2id:
@@ -40,4 +41,32 @@ class Argon2id:
         secret: bytes | None = None,
     ) -> None: ...
     def derive(self, key_material: bytes) -> bytes: ...
+    def verify(self, key_material: bytes, expected_key: bytes) -> None: ...
+    def derive_phc_encoded(self, key_material: bytes) -> str: ...
+    @classmethod
+    def verify_phc_encoded(
+        cls, key_material: bytes, phc_encoded: str, secret: bytes | None = None
+    ) -> None: ...
+
+class HKDF:
+    def __init__(
+        self,
+        algorithm: HashAlgorithm,
+        length: int,
+        salt: bytes | None,
+        info: bytes | None,
+        backend: typing.Any = None,
+    ): ...
+    def derive(self, key_material: Buffer) -> bytes: ...
+    def verify(self, key_material: bytes, expected_key: bytes) -> None: ...
+
+class HKDFExpand:
+    def __init__(
+        self,
+        algorithm: HashAlgorithm,
+        length: int,
+        info: bytes | None,
+        backend: typing.Any = None,
+    ): ...
+    def derive(self, key_material: Buffer) -> bytes: ...
     def verify(self, key_material: bytes, expected_key: bytes) -> None: ...

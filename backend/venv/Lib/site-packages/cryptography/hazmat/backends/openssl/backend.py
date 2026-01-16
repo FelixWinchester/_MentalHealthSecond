@@ -132,7 +132,19 @@ class Backend:
         # FIPS mode still allows SHA1 for HMAC
         if self._fips_enabled and isinstance(algorithm, hashes.SHA1):
             return True
-
+        if rust_openssl.CRYPTOGRAPHY_IS_AWSLC:
+            return isinstance(
+                algorithm,
+                (
+                    hashes.SHA1,
+                    hashes.SHA224,
+                    hashes.SHA256,
+                    hashes.SHA384,
+                    hashes.SHA512,
+                    hashes.SHA512_224,
+                    hashes.SHA512_256,
+                ),
+            )
         return self.hash_supported(algorithm)
 
     def cipher_supported(self, cipher: CipherAlgorithm, mode: Mode) -> bool:
@@ -169,14 +181,17 @@ class Backend:
         if isinstance(padding, PKCS1v15):
             return True
         elif isinstance(padding, PSS) and isinstance(padding._mgf, MGF1):
-            # SHA1 is permissible in MGF1 in FIPS even when SHA1 is blocked
-            # as signature algorithm.
-            if self._fips_enabled and isinstance(
-                padding._mgf._algorithm, hashes.SHA1
+            # FIPS 186-4 only allows salt length == digest length for PSS
+            # It is technically acceptable to set an explicit salt length
+            # equal to the digest length and this will incorrectly fail, but
+            # since we don't do that in the tests and this method is
+            # private, we'll ignore that until we need to do otherwise.
+            if (
+                self._fips_enabled
+                and padding._salt_length != PSS.DIGEST_LENGTH
             ):
-                return True
-            else:
-                return self.hash_supported(padding._mgf._algorithm)
+                return False
+            return self.hash_supported(padding._mgf._algorithm)
         elif isinstance(padding, OAEP) and isinstance(padding._mgf, MGF1):
             return self._oaep_hash_supported(
                 padding._mgf._algorithm
@@ -236,15 +251,16 @@ class Backend:
         )
 
     def dh_supported(self) -> bool:
-        return not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+        return (
+            not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+            and not rust_openssl.CRYPTOGRAPHY_IS_AWSLC
+        )
 
     def dh_x942_serialization_supported(self) -> bool:
         return self._lib.Cryptography_HAS_EVP_PKEY_DHX == 1
 
     def x25519_supported(self) -> bool:
-        if self._fips_enabled:
-            return False
-        return True
+        return not self._fips_enabled
 
     def x448_supported(self) -> bool:
         if self._fips_enabled:
@@ -252,12 +268,11 @@ class Backend:
         return (
             not rust_openssl.CRYPTOGRAPHY_IS_LIBRESSL
             and not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+            and not rust_openssl.CRYPTOGRAPHY_IS_AWSLC
         )
 
     def ed25519_supported(self) -> bool:
-        if self._fips_enabled:
-            return False
-        return True
+        return not self._fips_enabled
 
     def ed448_supported(self) -> bool:
         if self._fips_enabled:
@@ -265,6 +280,7 @@ class Backend:
         return (
             not rust_openssl.CRYPTOGRAPHY_IS_LIBRESSL
             and not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+            and not rust_openssl.CRYPTOGRAPHY_IS_AWSLC
         )
 
     def ecdsa_deterministic_supported(self) -> bool:
@@ -274,12 +290,13 @@ class Backend:
         )
 
     def poly1305_supported(self) -> bool:
-        if self._fips_enabled:
-            return False
-        return True
+        return not self._fips_enabled
 
     def pkcs7_supported(self) -> bool:
-        return not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+        return (
+            not rust_openssl.CRYPTOGRAPHY_IS_BORINGSSL
+            and not rust_openssl.CRYPTOGRAPHY_IS_AWSLC
+        )
 
 
 backend = Backend()

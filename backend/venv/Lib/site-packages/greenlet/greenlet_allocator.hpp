@@ -5,6 +5,7 @@
 #include <Python.h>
 #include <memory>
 #include "greenlet_compiler_compat.hpp"
+#include "greenlet_cpython_compat.hpp"
 
 
 namespace greenlet
@@ -35,10 +36,16 @@ namespace greenlet
         T* allocate(size_t number_objects, const void* UNUSED(hint)=0)
         {
             void* p;
-            if (number_objects == 1)
-                p = PyObject_Malloc(sizeof(T));
-            else
+            if (number_objects == 1) {
+#ifdef Py_GIL_DISABLED
                 p = PyMem_Malloc(sizeof(T) * number_objects);
+#else
+                p = PyObject_Malloc(sizeof(T));
+#endif
+            }
+            else {
+                p = PyMem_Malloc(sizeof(T) * number_objects);
+            }
             return static_cast<T*>(p);
         }
 
@@ -46,10 +53,15 @@ namespace greenlet
         {
             void* p = t;
             if (n == 1) {
-                PyObject_Free(p);
-            }
-            else
+#ifdef Py_GIL_DISABLED
                 PyMem_Free(p);
+#else
+                PyObject_Free(p);
+#endif
+            }
+            else {
+                PyMem_Free(p);
+            }
         }
         // This member is deprecated in C++17 and removed in C++20
         template< class U >
@@ -58,6 +70,7 @@ namespace greenlet
         };
 
     };
+
 }
 
 #endif

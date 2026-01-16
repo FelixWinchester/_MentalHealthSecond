@@ -9,6 +9,7 @@ import re
 import sys
 import typing
 import warnings
+from collections.abc import Iterable, Iterator
 
 from cryptography import utils
 from cryptography.hazmat.bindings._rust import x509 as rust_x509
@@ -114,11 +115,20 @@ def _unescape_dn_value(val: str) -> str:
     return _RFC4514NameParser._PAIR_RE.sub(sub, val)
 
 
-class NameAttribute:
+NameAttributeValueType = typing.TypeVar(
+    "NameAttributeValueType",
+    typing.Union[str, bytes],
+    str,
+    bytes,
+    covariant=True,
+)
+
+
+class NameAttribute(typing.Generic[NameAttributeValueType]):
     def __init__(
         self,
         oid: ObjectIdentifier,
-        value: str | bytes,
+        value: NameAttributeValueType,
         _type: _ASN1Type | None = None,
         *,
         _validate: bool = True,
@@ -134,9 +144,8 @@ class NameAttribute:
                 )
             if not isinstance(value, bytes):
                 raise TypeError("value must be bytes for BitString")
-        else:
-            if not isinstance(value, str):
-                raise TypeError("value argument must be a str")
+        elif not isinstance(value, str):
+            raise TypeError("value argument must be a str")
 
         length_limits = _NAMEOID_LENGTH_LIMIT.get(oid)
         if length_limits is not None:
@@ -166,15 +175,15 @@ class NameAttribute:
             raise TypeError("_type must be from the _ASN1Type enum")
 
         self._oid = oid
-        self._value = value
-        self._type = _type
+        self._value: NameAttributeValueType = value
+        self._type: _ASN1Type = _type
 
     @property
     def oid(self) -> ObjectIdentifier:
         return self._oid
 
     @property
-    def value(self) -> str | bytes:
+    def value(self) -> NameAttributeValueType:
         return self._value
 
     @property
@@ -216,7 +225,7 @@ class NameAttribute:
 
 
 class RelativeDistinguishedName:
-    def __init__(self, attributes: typing.Iterable[NameAttribute]):
+    def __init__(self, attributes: Iterable[NameAttribute]):
         attributes = list(attributes)
         if not attributes:
             raise ValueError("a relative distinguished name cannot be empty")
@@ -231,8 +240,9 @@ class RelativeDistinguishedName:
             raise ValueError("duplicate attributes are not allowed")
 
     def get_attributes_for_oid(
-        self, oid: ObjectIdentifier
-    ) -> list[NameAttribute]:
+        self,
+        oid: ObjectIdentifier,
+    ) -> list[NameAttribute[str | bytes]]:
         return [i for i in self if i.oid == oid]
 
     def rfc4514_string(
@@ -258,7 +268,7 @@ class RelativeDistinguishedName:
     def __hash__(self) -> int:
         return hash(self._attribute_set)
 
-    def __iter__(self) -> typing.Iterator[NameAttribute]:
+    def __iter__(self) -> Iterator[NameAttribute]:
         return iter(self._attributes)
 
     def __len__(self) -> int:
@@ -270,16 +280,16 @@ class RelativeDistinguishedName:
 
 class Name:
     @typing.overload
-    def __init__(self, attributes: typing.Iterable[NameAttribute]) -> None: ...
+    def __init__(self, attributes: Iterable[NameAttribute]) -> None: ...
 
     @typing.overload
     def __init__(
-        self, attributes: typing.Iterable[RelativeDistinguishedName]
+        self, attributes: Iterable[RelativeDistinguishedName]
     ) -> None: ...
 
     def __init__(
         self,
-        attributes: typing.Iterable[NameAttribute | RelativeDistinguishedName],
+        attributes: Iterable[NameAttribute | RelativeDistinguishedName],
     ) -> None:
         attributes = list(attributes)
         if all(isinstance(x, NameAttribute) for x in attributes):
@@ -324,8 +334,9 @@ class Name:
         )
 
     def get_attributes_for_oid(
-        self, oid: ObjectIdentifier
-    ) -> list[NameAttribute]:
+        self,
+        oid: ObjectIdentifier,
+    ) -> list[NameAttribute[str | bytes]]:
         return [i for i in self if i.oid == oid]
 
     @property
@@ -346,7 +357,7 @@ class Name:
         # for you, consider optimizing!
         return hash(tuple(self._attributes))
 
-    def __iter__(self) -> typing.Iterator[NameAttribute]:
+    def __iter__(self) -> Iterator[NameAttribute]:
         for rdn in self._attributes:
             yield from rdn
 

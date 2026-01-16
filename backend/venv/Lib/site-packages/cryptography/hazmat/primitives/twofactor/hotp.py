@@ -11,6 +11,7 @@ from urllib.parse import quote, urlencode
 from cryptography.hazmat.primitives import constant_time, hmac
 from cryptography.hazmat.primitives.hashes import SHA1, SHA256, SHA512
 from cryptography.hazmat.primitives.twofactor import InvalidToken
+from cryptography.utils import Buffer
 
 HOTPHashTypes = typing.Union[SHA1, SHA256, SHA512]
 
@@ -44,7 +45,7 @@ def _generate_uri(
 class HOTP:
     def __init__(
         self,
-        key: bytes,
+        key: Buffer,
         length: int,
         algorithm: HOTPHashTypes,
         backend: typing.Any = None,
@@ -84,7 +85,7 @@ class HOTP:
         try:
             ctx.update(counter.to_bytes(length=8, byteorder="big"))
         except OverflowError:
-            raise ValueError(f"Counter must be between 0 and {2 ** 64 - 1}.")
+            raise ValueError(f"Counter must be between 0 and {2**64 - 1}.")
 
         hmac_value = ctx.finalize()
 

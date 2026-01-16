@@ -64,8 +64,13 @@ def cryptography_has_custom_ext() -> list[str]:
 
 def cryptography_has_tlsv13_functions() -> list[str]:
     return [
-        "SSL_VERIFY_POST_HANDSHAKE",
         "SSL_CTX_set_ciphersuites",
+    ]
+
+
+def cryptography_has_tlsv13_hs_functions() -> list[str]:
+    return [
+        "SSL_VERIFY_POST_HANDSHAKE",
         "SSL_verify_client_post_handshake",
         "SSL_CTX_set_post_handshake_auth",
         "SSL_set_post_handshake_auth",
@@ -73,6 +78,12 @@ def cryptography_has_tlsv13_functions() -> list[str]:
         "SSL_write_early_data",
         "SSL_read_early_data",
         "SSL_CTX_set_max_early_data",
+    ]
+
+
+def cryptography_has_ssl_verify_client_post_handshake() -> list[str]:
+    return [
+        "SSL_verify_client_post_handshake",
     ]
 
 
@@ -150,6 +161,10 @@ def cryptography_has_get_extms_support() -> list[str]:
     return ["SSL_get_extms_support"]
 
 
+def cryptography_has_ssl_get0_group_name() -> list[str]:
+    return ["SSL_get0_group_name"]
+
+
 # This is a mapping of
 # {condition: function-returning-names-dependent-on-that-condition} so we can
 # loop over them and delete unsupported names at runtime. It will be removed
@@ -164,6 +179,12 @@ CONDITIONAL_NAMES = {
     "Cryptography_HAS_PSK_TLSv1_3": cryptography_has_psk_tlsv13,
     "Cryptography_HAS_CUSTOM_EXT": cryptography_has_custom_ext,
     "Cryptography_HAS_TLSv1_3_FUNCTIONS": cryptography_has_tlsv13_functions,
+    "Cryptography_HAS_TLSv1_3_HS_FUNCTIONS": (
+        cryptography_has_tlsv13_hs_functions
+    ),
+    "Cryptography_HAS_SSL_VERIFY_CLIENT_POST_HANDSHAKE": (
+        cryptography_has_ssl_verify_client_post_handshake
+    ),
     "Cryptography_HAS_ENGINE": cryptography_has_engine,
     "Cryptography_HAS_VERIFIED_CHAIN": cryptography_has_verified_chain,
     "Cryptography_HAS_SRTP": cryptography_has_srtp,
@@ -180,4 +201,7 @@ CONDITIONAL_NAMES = {
         cryptography_has_ssl_op_ignore_unexpected_eof
     ),
     "Cryptography_HAS_GET_EXTMS_SUPPORT": cryptography_has_get_extms_support,
+    "Cryptography_HAS_SSL_GET0_GROUP_NAME": (
+        cryptography_has_ssl_get0_group_name
+    ),
 }

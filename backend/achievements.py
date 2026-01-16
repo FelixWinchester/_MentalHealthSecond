@@ -1,60 +1,62 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from models import Achievement, UserAchievementDB, UserDB, AchievementDB
-
-from datetime import datetime
+from models import UserAchievementDB, UserDB, AchievementDB
+from datetime import datetime, timezone
 
 class AchievementService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     async def check_achievements(self, user: UserDB):
-        achievements = await self.db.execute(select(AchievementDB))
-        unlocked = []
+        # 1. Получаем ID уже имеющихся ачивок пользователя, чтобы не проверять их
+        unlocked_result = await self.db.execute(
+            select(UserAchievementDB.achievement_id)
+            .where(UserAchievementDB.user_id == user.id)
+        )
+        already_had_ids = set(unlocked_result.scalars().all())
 
-        for achievement in achievements.scalars():
+        # 2. Получаем только те ачивки, которых у пользователя еще НЕТ
+        achievements_to_check = await self.db.execute(
+            select(AchievementDB).where(AchievementDB.id.not_in(already_had_ids))
+        )
+        
+        unlocked_names = []
+
+        for achievement in achievements_to_check.scalars():
             if await self.check_condition(user, achievement.condition):
-                if not await self.is_unlocked(user, achievement):
-                    unlocked.append(achievement)
-                    await self.unlock_achievement(user, achievement, commit=False)
+                # Просто добавляем в сессию, НЕ коммитим здесь
+                await self.unlock_achievement(user, achievement)
+                unlocked_names.append(achievement.name)
 
-        if unlocked:
-            await self.db.commit()
+        # 3. Делаем flush, чтобы изменения ушли в БД, но транзакция осталась открытой
+        if unlocked_names:
+            await self.db.flush()
 
-        return [a.name for a in unlocked]
-
+        return unlocked_names
 
     async def check_condition(self, user: UserDB, condition: str):
+        # Логика условий (оставляем как была, она рабочая)
         if condition == 'first_entry':
-            return user.total_entries >= 1
-
+            return (user.total_entries or 0) >= 1
+        
         if condition.startswith('streak'):
-            _, value = condition.split('_')
-            return user.current_streak >= int(value)
-    
+            try:
+                _, value = condition.split('_')
+                return (user.current_streak or 0) >= int(value)
+            except ValueError: return False
+            
         if condition.startswith('entries'):
-            _, value = condition.split('_')
-            return user.total_entries >= int(value)
-    
+            try:
+                _, value = condition.split('_')
+                return (user.total_entries or 0) >= int(value)
+            except ValueError: return False
+            
         return False
 
-
-    async def is_unlocked(self, user: UserDB, achievement: Achievement):
-        result = await self.db.execute(
-            select(UserAchievementDB).where(
-                UserAchievementDB.user_id == user.id,
-                UserAchievementDB.achievement_id == achievement.id
-            )
-        )
-        return result.scalar() is not None
-
-    async def unlock_achievement(self, user: UserDB, achievement: Achievement, commit: bool = True):
+    async def unlock_achievement(self, user: UserDB, achievement: AchievementDB):
         user_achievement = UserAchievementDB(
             user_id=user.id,
             achievement_id=achievement.id,
-            unlocked_at=datetime.utcnow()
-            )
+            unlocked_at=datetime.now(timezone.utc).replace(tzinfo=None)
+        )
         self.db.add(user_achievement)
-        if commit:
-            await self.db.commit()

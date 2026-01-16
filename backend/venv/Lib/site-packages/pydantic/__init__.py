@@ -1,11 +1,14 @@
-import typing
 from importlib import import_module
+from typing import TYPE_CHECKING
 from warnings import warn
 
 from ._migration import getattr_migration
-from .version import VERSION
+from .version import VERSION, _ensure_pydantic_core_version
 
-if typing.TYPE_CHECKING:
+_ensure_pydantic_core_version()
+del _ensure_pydantic_core_version
+
+if TYPE_CHECKING:
     # import of virtually everything is supported via `__getattr__` below,
     # but we need them here for type checking and IDE support
     import pydantic_core
@@ -37,6 +40,7 @@ if typing.TYPE_CHECKING:
         ModelWrapValidatorHandler,
         PlainValidator,
         SkipValidation,
+        ValidateAs,
         WrapValidator,
         field_validator,
         model_validator,
@@ -51,6 +55,9 @@ if typing.TYPE_CHECKING:
         PydanticDeprecatedSince20,
         PydanticDeprecatedSince26,
         PydanticDeprecatedSince29,
+        PydanticDeprecatedSince210,
+        PydanticDeprecatedSince211,
+        PydanticDeprecatedSince212,
         PydanticDeprecationWarning,
         PydanticExperimentalWarning,
     )
@@ -74,6 +81,7 @@ __all__ = (
     'PlainValidator',
     'WrapValidator',
     'SkipValidation',
+    'ValidateAs',
     'InstanceOf',
     'ModelWrapValidatorHandler',
     # JSON Schema
@@ -102,6 +110,7 @@ __all__ = (
     'PydanticImportError',
     'PydanticUndefinedAnnotation',
     'PydanticInvalidForJsonSchema',
+    'PydanticForbiddenQualifier',
     # fields
     'Field',
     'computed_field',
@@ -172,6 +181,9 @@ __all__ = (
     'UUID3',
     'UUID4',
     'UUID5',
+    'UUID6',
+    'UUID7',
+    'UUID8',
     'FilePath',
     'DirectoryPath',
     'NewPath',
@@ -215,6 +227,9 @@ __all__ = (
     'PydanticDeprecatedSince20',
     'PydanticDeprecatedSince26',
     'PydanticDeprecatedSince29',
+    'PydanticDeprecatedSince210',
+    'PydanticDeprecatedSince211',
+    'PydanticDeprecatedSince212',
     'PydanticDeprecationWarning',
     'PydanticExperimentalWarning',
     # annotated handlers
@@ -242,6 +257,7 @@ _dynamic_imports: 'dict[str, tuple[str, str]]' = {
     'WrapValidator': (__spec__.parent, '.functional_validators'),
     'SkipValidation': (__spec__.parent, '.functional_validators'),
     'InstanceOf': (__spec__.parent, '.functional_validators'),
+    'ValidateAs': (__spec__.parent, '.functional_validators'),
     'ModelWrapValidatorHandler': (__spec__.parent, '.functional_validators'),
     # JSON Schema
     'WithJsonSchema': (__spec__.parent, '.json_schema'),
@@ -263,6 +279,7 @@ _dynamic_imports: 'dict[str, tuple[str, str]]' = {
     'PydanticImportError': (__spec__.parent, '.errors'),
     'PydanticUndefinedAnnotation': (__spec__.parent, '.errors'),
     'PydanticInvalidForJsonSchema': (__spec__.parent, '.errors'),
+    'PydanticForbiddenQualifier': (__spec__.parent, '.errors'),
     # fields
     'Field': (__spec__.parent, '.fields'),
     'computed_field': (__spec__.parent, '.fields'),
@@ -329,6 +346,9 @@ _dynamic_imports: 'dict[str, tuple[str, str]]' = {
     'UUID3': (__spec__.parent, '.types'),
     'UUID4': (__spec__.parent, '.types'),
     'UUID5': (__spec__.parent, '.types'),
+    'UUID6': (__spec__.parent, '.types'),
+    'UUID7': (__spec__.parent, '.types'),
+    'UUID8': (__spec__.parent, '.types'),
     'FilePath': (__spec__.parent, '.types'),
     'DirectoryPath': (__spec__.parent, '.types'),
     'NewPath': (__spec__.parent, '.types'),
@@ -370,6 +390,9 @@ _dynamic_imports: 'dict[str, tuple[str, str]]' = {
     'PydanticDeprecatedSince20': (__spec__.parent, '.warnings'),
     'PydanticDeprecatedSince26': (__spec__.parent, '.warnings'),
     'PydanticDeprecatedSince29': (__spec__.parent, '.warnings'),
+    'PydanticDeprecatedSince210': (__spec__.parent, '.warnings'),
+    'PydanticDeprecatedSince211': (__spec__.parent, '.warnings'),
+    'PydanticDeprecatedSince212': (__spec__.parent, '.warnings'),
     'PydanticDeprecationWarning': (__spec__.parent, '.warnings'),
     'PydanticExperimentalWarning': (__spec__.parent, '.warnings'),
     # annotated handlers
@@ -401,9 +424,11 @@ _getattr_migration = getattr_migration(__name__)
 
 def __getattr__(attr_name: str) -> object:
     if attr_name in _deprecated_dynamic_imports:
+        from pydantic.warnings import PydanticDeprecatedSince20
+
         warn(
             f'Importing {attr_name} from `pydantic` is deprecated. This feature is either no longer supported, or is not public.',
-            DeprecationWarning,
+            PydanticDeprecatedSince20,
             stacklevel=2,
         )
 
@@ -427,5 +452,5 @@ def __getattr__(attr_name: str) -> object:
         return result
 
 
-def __dir__() -> 'list[str]':
+def __dir__() -> list[str]:
     return list(__all__)

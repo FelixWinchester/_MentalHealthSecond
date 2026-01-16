@@ -5,6 +5,13 @@
 # the Apache 2.0 License: http://www.apache.org/licenses/LICENSE-2.0
 
 
+from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
+                         int32_t, uint32_t, int64_t, uint64_t
+
+
+include "./buffer.pxi"
+
+
 cdef class WriteBuffer:
     cdef:
         # Preallocated small buffer
@@ -127,7 +134,7 @@ cdef class ReadBuffer:
     cdef inline const char* try_consume_message(self, ssize_t* len)
     cdef bytes consume_message(self)
     cdef discard_message(self)
-    cdef redirect_messages(self, WriteBuffer buf, char mtype, int stop_at=?)
+    cdef int32_t redirect_messages(self, WriteBuffer buf, char mtype, int stop_at=?)
     cdef bytearray consume_messages(self, char mtype)
     cdef finish_message(self)
     cdef inline _finish_message(self)

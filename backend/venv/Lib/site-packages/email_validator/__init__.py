@@ -1,8 +1,8 @@
 from typing import TYPE_CHECKING
 
 # Export the main method, helper methods, and the public data types.
-from .exceptions_types import ValidatedEmail, EmailNotValidError, \
-                              EmailSyntaxError, EmailUndeliverableError
+from .exceptions import EmailNotValidError, EmailSyntaxError, EmailUndeliverableError
+from .types import ValidatedEmail
 from .validate_email import validate_email
 from .version import __version__
 
@@ -27,9 +27,11 @@ else:
 # Default values for keyword arguments.
 
 ALLOW_SMTPUTF8 = True
+ALLOW_EMPTY_LOCAL = False
 ALLOW_QUOTED_LOCAL = False
 ALLOW_DOMAIN_LITERAL = False
 ALLOW_DISPLAY_NAME = False
+STRICT = False
 GLOBALLY_DELIVERABLE = True
 CHECK_DELIVERABILITY = True
 TEST_ENVIRONMENT = False

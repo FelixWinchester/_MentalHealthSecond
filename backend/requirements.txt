@@ -7,3 +7,7 @@ python-jose
 passlib[bcrypt]
 python-multipart
 strenum
+authlib
+httpx
+dotenv
+alembic

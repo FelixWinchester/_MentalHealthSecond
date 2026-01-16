@@ -4,6 +4,7 @@
 
 import datetime
 import typing
+from collections.abc import Iterator
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -44,18 +45,21 @@ def create_x509_certificate(
     private_key: PrivateKeyTypes,
     hash_algorithm: hashes.HashAlgorithm | None,
     rsa_padding: PKCS1v15 | PSS | None,
+    ecdsa_deterministic: bool | None,
 ) -> x509.Certificate: ...
 def create_x509_csr(
     builder: x509.CertificateSigningRequestBuilder,
     private_key: PrivateKeyTypes,
     hash_algorithm: hashes.HashAlgorithm | None,
     rsa_padding: PKCS1v15 | PSS | None,
+    ecdsa_deterministic: bool | None,
 ) -> x509.CertificateSigningRequest: ...
 def create_x509_crl(
     builder: x509.CertificateRevocationListBuilder,
     private_key: PrivateKeyTypes,
     hash_algorithm: hashes.HashAlgorithm | None,
     rsa_padding: PKCS1v15 | PSS | None,
+    ecdsa_deterministic: bool | None,
 ) -> x509.CertificateRevocationList: ...
 
 class Sct:
@@ -108,7 +112,7 @@ class Certificate:
     @property
     def signature_algorithm_parameters(
         self,
-    ) -> None | PSS | PKCS1v15 | ECDSA: ...
+    ) -> PSS | PKCS1v15 | ECDSA | None: ...
     @property
     def extensions(self) -> x509.Extensions: ...
     @property
@@ -129,7 +133,7 @@ class CertificateRevocationList:
     def fingerprint(self, algorithm: hashes.HashAlgorithm) -> bytes: ...
     def get_revoked_certificate_by_serial_number(
         self, serial_number: int
-    ) -> RevokedCertificate | None: ...
+    ) -> x509.RevokedCertificate | None: ...
     @property
     def signature_hash_algorithm(
         self,
@@ -139,7 +143,7 @@ class CertificateRevocationList:
     @property
     def signature_algorithm_parameters(
         self,
-    ) -> None | PSS | PKCS1v15 | ECDSA: ...
+    ) -> PSS | PKCS1v15 | ECDSA | None: ...
     @property
     def issuer(self) -> x509.Name: ...
     @property
@@ -162,7 +166,7 @@ class CertificateRevocationList:
     def __getitem__(self, idx: int) -> x509.RevokedCertificate: ...
     @typing.overload
     def __getitem__(self, idx: slice) -> list[x509.RevokedCertificate]: ...
-    def __iter__(self) -> typing.Iterator[x509.RevokedCertificate]: ...
+    def __iter__(self) -> Iterator[x509.RevokedCertificate]: ...
     def is_signature_valid(
         self, public_key: CertificateIssuerPublicKeyTypes
     ) -> bool: ...
@@ -182,7 +186,7 @@ class CertificateSigningRequest:
     @property
     def signature_algorithm_parameters(
         self,
-    ) -> None | PSS | PKCS1v15 | ECDSA: ...
+    ) -> PSS | PKCS1v15 | ECDSA | None: ...
     @property
     def extensions(self) -> x509.Extensions: ...
     @property
@@ -194,16 +198,74 @@ class CertificateSigningRequest:
     def tbs_certrequest_bytes(self) -> bytes: ...
     @property
     def is_signature_valid(self) -> bool: ...
-    def get_attribute_for_oid(self, oid: x509.ObjectIdentifier) -> bytes: ...
 
 class PolicyBuilder:
-    def time(self, new_time: datetime.datetime) -> PolicyBuilder: ...
-    def store(self, new_store: Store) -> PolicyBuilder: ...
-    def max_chain_depth(self, new_max_chain_depth: int) -> PolicyBuilder: ...
+    def time(self, time: datetime.datetime) -> PolicyBuilder: ...
+    def store(self, store: Store) -> PolicyBuilder: ...
+    def max_chain_depth(self, max_chain_depth: int) -> PolicyBuilder: ...
+    def extension_policies(
+        self, *, ca_policy: ExtensionPolicy, ee_policy: ExtensionPolicy
+    ) -> PolicyBuilder: ...
     def build_client_verifier(self) -> ClientVerifier: ...
     def build_server_verifier(
         self, subject: x509.verification.Subject
     ) -> ServerVerifier: ...
+
+class Policy:
+    @property
+    def max_chain_depth(self) -> int: ...
+    @property
+    def subject(self) -> x509.verification.Subject | None: ...
+    @property
+    def validation_time(self) -> datetime.datetime: ...
+    @property
+    def extended_key_usage(self) -> x509.ObjectIdentifier: ...
+    @property
+    def minimum_rsa_modulus(self) -> int: ...
+
+class Criticality:
+    CRITICAL: Criticality
+    AGNOSTIC: Criticality
+    NON_CRITICAL: Criticality
+
+T = typing.TypeVar("T", contravariant=True, bound=x509.ExtensionType)
+
+MaybeExtensionValidatorCallback = typing.Callable[
+    [
+        Policy,
+        x509.Certificate,
+        T | None,
+    ],
+    None,
+]
+
+PresentExtensionValidatorCallback = typing.Callable[
+    [Policy, x509.Certificate, T],
+    None,
+]
+
+class ExtensionPolicy:
+    @staticmethod
+    def permit_all() -> ExtensionPolicy: ...
+    @staticmethod
+    def webpki_defaults_ca() -> ExtensionPolicy: ...
+    @staticmethod
+    def webpki_defaults_ee() -> ExtensionPolicy: ...
+    def require_not_present(
+        self, extension_type: type[x509.ExtensionType]
+    ) -> ExtensionPolicy: ...
+    def may_be_present(
+        self,
+        extension_type: type[T],
+        criticality: Criticality,
+        validator: MaybeExtensionValidatorCallback[T] | None,
+    ) -> ExtensionPolicy: ...
+    def require_present(
+        self,
+        extension_type: type[T],
+        criticality: Criticality,
+        validator: PresentExtensionValidatorCallback[T] | None,
+    ) -> ExtensionPolicy: ...
 
 class VerifiedClient:
     @property
@@ -213,11 +275,9 @@ class VerifiedClient:
 
 class ClientVerifier:
     @property
-    def validation_time(self) -> datetime.datetime: ...
+    def policy(self) -> Policy: ...
     @property
     def store(self) -> Store: ...
-    @property
-    def max_chain_depth(self) -> int: ...
     def verify(
         self,
         leaf: x509.Certificate,
@@ -226,13 +286,9 @@ class ClientVerifier:
 
 class ServerVerifier:
     @property
-    def subject(self) -> x509.verification.Subject: ...
-    @property
-    def validation_time(self) -> datetime.datetime: ...
+    def policy(self) -> Policy: ...
     @property
     def store(self) -> Store: ...
-    @property
-    def max_chain_depth(self) -> int: ...
     def verify(
         self,
         leaf: x509.Certificate,
@@ -242,5 +298,4 @@ class ServerVerifier:
 class Store:
     def __init__(self, certs: list[x509.Certificate]) -> None: ...
 
-class VerificationError(Exception):
-    pass
+class VerificationError(Exception): ...

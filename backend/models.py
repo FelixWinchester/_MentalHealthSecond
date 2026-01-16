@@ -89,7 +89,7 @@ class TokenData(BaseModel):
     username: Optional[str] = None
 
 class MoodEntryCreate(BaseModel):
-    mood: str
+    mood: Optional[str] = None
     details: Optional[str] = None
 
 class MoodEntryOut(MoodEntryCreate):
@@ -118,7 +118,6 @@ class UserDB(Base):
     hashed_password = Column(String(256))
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login = Column(DateTime, nullable=True)
-    google_id = Column(String, unique=True, index=True, nullable=True)
 
     current_streak = Column(Integer, default=0)
     longest_streak = Column(Integer, default=0)
@@ -141,7 +140,7 @@ class MoodEntry(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    mood = Column(Enum(MoodType), nullable=False)  # Исправлено здесь
+    mood = Column(Enum(MoodType), nullable=True)  # Исправлено здесь
     details = Column(String(500), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     

@@ -1,7 +1,12 @@
 <div align = "center">
   
+<<<<<<< HEAD
 # $${\color{lightgreen}Проект \space по \space Т.Р.П.О.} $$ 
 ## $${\color{lightblue}Тема \space проекта: \space "Дневник \space ментального \space здоровья"} $$  
+=======
+# $${\color{lightgreen}Тип \space проекта: Стартап} $$ 
+## $${\color{lightblue}Название: \space "Дневник \space ментального \space здоровья"} $$  
+>>>>>>> 3d0d311636e66caa5d8b7bcfe061b93cf59098c4
 ## $${\color{pink}Название \space команды: \space "Watermelon \space inc."} $$
 
 <img src = "https://www.pngmart.com/files/3/Watermelon-PNG-File.png" width = "300">
@@ -47,10 +52,15 @@ $${\color{plum}представляют \space своё \space решение \s
   - Козиков Данила
   - Тищенко Максим
   - Бережнов Артём
+<<<<<<< HEAD
   - Макаров Михаил
   - Агарков Максим
   - Синельников Никита
 
+=======
+  - Синельников Никита
+  - Агарков Максим
+>>>>>>> 3d0d311636e66caa5d8b7bcfe061b93cf59098c4
 ---
 
 <div align = "center">

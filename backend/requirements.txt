@@ -6,9 +6,12 @@ pydantic[email]
 python-jose
 passlib[bcrypt]
 python-multipart
+<<<<<<< HEAD
 strenum
 authlib
 httpx
 dotenv
 alembic
 psycopg2
+=======
+>>>>>>> 3d0d311636e66caa5d8b7bcfe061b93cf59098c4

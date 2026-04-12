@@ -89,5 +89,36 @@ export default {
   // Получить конкретную запись по ID
   getNoteById(entryId) {
     return apiClient.get(`/mood/${entryId}`);
+  },
+
+
+  getThreads() {
+    return apiClient.get('/forum/threads');
+  },
+
+  getThreadById(id) {
+    return apiClient.get(`/forum/threads/${id}`);
+  },
+
+  createThread(threadData) {
+    // threadData: { title, content, is_anonymous, is_public }
+    return apiClient.post('/forum/threads', threadData);
+  },
+
+  voteThread(threadId, value) {
+    // value: 1 для лайка, -1 для дизлайка
+    return apiClient.post(`/forum/threads/${threadId}/vote`, { value });
+  },
+
+  // Comments
+  getComments(threadId) {
+    return apiClient.get(`/forum/threads/${threadId}/comments`);
+  },
+
+  createComment(threadId, commentData) {
+    // commentData: { content, is_anonymous }
+    return apiClient.post(`/forum/threads/${threadId}/comments`, commentData);
   }
+
+
 };

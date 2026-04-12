@@ -1,13 +1,18 @@
-from enum import StrEnum
+from enum import Enum as PyEnum, StrEnum
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
-from sqlalchemy import Column, Enum, Index, Integer, String, DateTime, ForeignKey
+from sqlalchemy import (
+    Column, Enum, Index, Integer, String, Text, 
+    DateTime, ForeignKey, Boolean, Table
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
 # Базовый класс для моделей SQLAlchemy
 Base = declarative_base()
+
+# --- ENUMS & CONSTANTS ---
 
 class MoodType(StrEnum):
     HAPPY = "happy"
@@ -19,15 +24,16 @@ class MoodType(StrEnum):
     WORRIED = "worried"
     SAD = "sad"
     DEPRESSED = "depressed"
-    
-#класс для работы графика
-class MoodChartPoint(BaseModel):
-    date: datetime
-    mood: str
-    details: Optional[str]
 
-    class Config:
-        from_attributes = True
+DAILY_QUESTIONS = [
+    "Что сегодня вызвало у тебя улыбку?",
+    "С каким чувством ты проснулся сегодня?",
+    "Что было самым сложным за день?",
+    "Как ты оцениваешь своё настроение от 1 до 5?",
+    "Что ты сделал для себя сегодня?"
+]
+
+# --- КЛАССЫ ЛОГИКИ (Non-DB) ---
 
 class MoodMap:
     _mood_to_score = {
@@ -48,23 +54,10 @@ class MoodMap:
         try:
             mood_enum = MoodType(mood.lower())
         except ValueError:
-            return 3  # или любое значение по умолчанию
-
+            return 3
         return cls._mood_to_score.get(mood_enum, 3)
-    
-DAILY_QUESTIONS = [
-    "Что сегодня вызвало у тебя улыбку?",
-    "С каким чувством ты проснулся сегодня?",
-    "Что было самым сложным за день?",
-    "Как ты оцениваешь своё настроение от 1 до 5?",
-    "Что ты сделал для себя сегодня?"
-]
 
-class DialogAnswer(BaseModel):
-    answer: str
-
-
-# Модели Pydantic для валидации данных
+# --- PYDANTIC SCHEMAS (Validation) ---
 
 class UserBase(BaseModel):
     username: str
@@ -76,7 +69,6 @@ class UserCreate(UserBase):
 class User(UserBase):
     id: int
     created_at: datetime
-
     class Config:
         from_attributes = True 
 
@@ -95,7 +87,13 @@ class MoodEntryCreate(BaseModel):
 class MoodEntryOut(MoodEntryCreate):
     id: int
     timestamp: datetime
+    class Config:
+        from_attributes = True
 
+class MoodChartPoint(BaseModel):
+    date: datetime
+    mood: str
+    details: Optional[str]
     class Config:
         from_attributes = True
 
@@ -103,11 +101,85 @@ class MoodViewHistoryOut(BaseModel):
     id: int
     viewed_at: datetime
     mood_entry: MoodEntryOut
+    class Config:
+        from_attributes = True
+
+class DialogAnswer(BaseModel):
+    answer: str
+
+# --- FORUM PYDANTIC SCHEMAS ---
+
+class ThreadCreate(BaseModel):
+    title: str
+    content: str
+    is_public: bool = True
+    is_anonymous: bool = False
+    allowed_user_ids: List[int] = []
+
+class CommentCreate(BaseModel):
+    content: str
+    is_anonymous: bool = False
+
+class VoteCreate(BaseModel):
+    value: int  # 1 или -1
+
+class ThreadOut(BaseModel):
+    id: int
+    title: str
+    content: str
+    created_at: datetime
+    is_anonymous: bool
+    author_name: str = "Пользователь"
+    rating: int = 0
+    comments_count: int = 0 
+    user_vote: int = 0
 
     class Config:
         from_attributes = True
 
-# Модели SQLAlchemy для базы данных
+class CommentOut(BaseModel):
+    id: int
+    content: str
+    created_at: datetime
+    author_name: Optional[str] = None
+    rating: int = 0
+    user_vote: Optional[int] = None
+    class Config:
+        from_attributes = True
+
+# --- ACHIEVEMENT SCHEMAS ---
+
+class AchievementBase(BaseModel):
+    name: str
+    description: str
+    icon: str
+    condition: str
+
+class Achievement(AchievementBase):
+    id: Optional[int] = None
+    class Config:
+        from_attributes = True
+
+class AchievementOut(AchievementBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+class UserAchievementOut(BaseModel):
+    achievement: Achievement
+    unlocked_at: datetime
+    class Config:
+        from_attributes = True
+
+# --- SQLALCHEMY MODELS ---
+
+# Таблица связи для приватных тредов (Many-to-Many)
+thread_access = Table(
+    "thread_access",
+    Base.metadata,
+    Column("thread_id", Integer, ForeignKey("threads.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+)
 
 class UserDB(Base):
     __tablename__ = "users"
@@ -128,7 +200,7 @@ class UserDB(Base):
     moods = relationship("MoodEntry", back_populates="user", cascade="all, delete-orphan")
     view_history = relationship("MoodViewHistory", back_populates="user", cascade="all, delete-orphan")
     dialog_messages = relationship("DialogMessage", back_populates="user", cascade="all, delete-orphan")
-
+    threads = relationship("ThreadDB", back_populates="author")
 
     __table_args__ = (
         Index('ix_user_email', "email"),
@@ -140,13 +212,10 @@ class MoodEntry(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    mood = Column(Enum(MoodType), nullable=True)  # Исправлено здесь
+    mood = Column(Enum(MoodType), nullable=True)
     details = Column(String(500), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     
-
-
-    # Отношения
     user = relationship("UserDB", back_populates="moods")
     views = relationship("MoodViewHistory", back_populates="mood_entry")
 
@@ -154,6 +223,55 @@ class MoodEntry(Base):
         Index('ix_mood_user', "user_id"),
         Index('ix_mood_timestamp', "timestamp"),
     )
+
+class ThreadDB(Base):
+    __tablename__ = "threads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(255), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    is_public = Column(Boolean, default=True)
+    is_anonymous = Column(Boolean, default=False)
+    
+    author_id = Column(Integer, ForeignKey("users.id"))
+    author = relationship("UserDB", back_populates="threads")
+    
+    comments = relationship("CommentDB", back_populates="thread", cascade="all, delete-orphan")
+    allowed_users = relationship("UserDB", secondary=thread_access)
+    votes = relationship("ThreadVote", cascade="all, delete-orphan")
+
+class CommentDB(Base):
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    thread_id = Column(Integer, ForeignKey("threads.id", ondelete="CASCADE"))
+    author_id = Column(Integer, ForeignKey("users.id"))
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    is_anonymous = Column(Boolean, default=False)
+
+    thread = relationship("ThreadDB", back_populates="comments")
+    author = relationship("UserDB")
+    votes = relationship("CommentVote", cascade="all, delete-orphan")
+
+class ThreadVote(Base):
+    __tablename__ = "thread_votes"
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    thread_id = Column(Integer, ForeignKey("threads.id", ondelete="CASCADE"), primary_key=True)
+    value = Column(Integer) # 1 или -1
+
+    # Добавляем уникальность, чтобы один юзер не мог иметь две записи для одного треда
+    __table_args__ = (
+        Index('ix_unique_user_vote', "user_id", "thread_id", unique=True),
+    )
+
+class CommentVote(Base):
+    __tablename__ = "comment_votes"
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    comment_id = Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), primary_key=True)
+    value = Column(Integer)
 
 class MoodViewHistory(Base):
     __tablename__ = "mood_view_history"
@@ -163,7 +281,6 @@ class MoodViewHistory(Base):
     mood_entry_id = Column(Integer, ForeignKey("mood_entries.id"))
     viewed_at = Column(DateTime, default=datetime.utcnow)
     
-    # Отношения
     user = relationship("UserDB", back_populates="view_history")
     mood_entry = relationship("MoodEntry", back_populates="views")
 
@@ -176,43 +293,12 @@ class DialogMessage(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    sender = Column(String(10), nullable=False)  # 'system' или 'user'
+    sender = Column(String(10), nullable=False)
     text = Column(String, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow)
 
-    # Отношения
     user = relationship("UserDB", back_populates="dialog_messages")
 
-
-class AchievementBase(BaseModel):
-    name: str
-    description: str
-    icon: str
-    condition: str
-
-class Achievement(AchievementBase):
-    id: Optional[int] = None
-
-    class Config:
-        from_attributes = True
-
-class AchievementCreate(AchievementBase):
-    pass
-
-class AchievementOut(AchievementBase):
-    id: int
-
-    class Config:
-        from_attributes = True
-
-class UserAchievementOut(BaseModel):
-    achievement: Achievement
-    unlocked_at: datetime
-
-    class Config:
-        from_attributes = True
-
-# SQLAlchemy Models (renamed)
 class AchievementDB(Base):
     __tablename__ = "achievements"
     id = Column(Integer, primary_key=True)

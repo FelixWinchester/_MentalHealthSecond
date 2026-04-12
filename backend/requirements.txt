@@ -11,3 +11,4 @@ authlib
 httpx
 dotenv
 alembic
+psycopg2

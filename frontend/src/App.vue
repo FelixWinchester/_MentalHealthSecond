@@ -5,8 +5,10 @@
       <h1 class="logo">Serenity</h1>
       <nav class="nav">
         <router-link to="/" class="nav-link" active-class="active">Главная</router-link>
+        <router-link to="/forum" class="nav-link" active-class="active">Сообщество</router-link>
         <router-link to="/condition" class="nav-link" active-class="active">Состояние</router-link>
         <router-link to="/chat" class="nav-link" active-class="active">Чат</router-link>
+
         
         <!-- Компонент профиля -->
         <div class="profile-container">

@@ -21,13 +21,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080",
-                   "http://10.66.66.3:8080",
-                   "http://10.66.66.8:8080",
-                   "http://10.66.66.4:8080",
-                   "http://10.66.66.11:8080",
-                    "http://192.168.109.97:8080",
-                    "http://192.168.0.105:8081"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,7 +46,7 @@ app.include_router(forum.router)
 default_achievements = [
     {"name": "Первая запись", "description": "Сделай первую запись", "icon": "🎉", "condition": "first_entry"},
     {"name": "7 дней подряд", "description": "Записывайся 7 дней без пропусков", "icon": "🔥", "condition": "streak_7"},
-    {"name": "30 записей", "description": "Сделай 30 записей", "icon": "🧠", "condition": "30_entries"},
+    {"name": "30 записей", "description": "Сделай 30 записей", "icon": "🧠", "condition": "entries_30"},
 ]
 
 @app.on_event("startup")
@@ -64,6 +58,12 @@ async def create_default_achievements():
         for ach in default_achievements:
             if ach["name"] not in existing:
                 session.add(AchievementDB(**ach))
+            else:
+                await session.execute(
+                    update(AchievementDB)
+                    .where(AchievementDB.name == ach["name"])
+                    .values(condition=ach["condition"])
+                )
         await session.commit()
         break  # выходим после одной сессии
 

@@ -140,6 +140,10 @@
         </div>
       </section>
 
+      <section class="chart-section" v-if="!isGuest">
+        <MoodChart />
+      </section>
+
       <section class="stats-section" id="stats-section">
         <div class="stats-container">
           <h2>Ваша активность</h2>
@@ -223,9 +227,11 @@
 
 <script>
 import api from '@/api/api';
+import MoodChart from '@/components/MoodChart.vue';
 
 export default {
   name: 'LkPage',
+  components: { MoodChart },
   data() {
     return {
       isLoading: true, // По умолчанию идет загрузка

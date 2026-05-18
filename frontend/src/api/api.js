@@ -92,6 +92,14 @@ export default {
   },
 
 
+  getMoodChart(period = 'month') {
+    return apiClient.get('/users/mood/chart', { params: { period } });
+  },
+
+  getMoodVerdict(period = 'month') {
+    return apiClient.get('/users/mood/verdict', { params: { period } });
+  },
+
   getThreads() {
     return apiClient.get('/forum/threads');
   },

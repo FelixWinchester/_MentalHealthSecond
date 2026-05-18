@@ -23,6 +23,53 @@ router = APIRouter(prefix="/users", tags=["users"])
 async def read_users_me(current_user: UserDB = Depends(get_current_user)):
     return current_user
 
+@router.get("/stats")
+async def get_user_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    from datetime import timedelta, date as date_type
+
+    total_result = await db.execute(
+        select(func.count(MoodEntry.id)).where(MoodEntry.user_id == current_user.id)
+    )
+    total_entries = total_result.scalar() or 0
+
+    ach_result = await db.execute(
+        select(func.count(UserAchievementDB.achievement_id))
+        .where(UserAchievementDB.user_id == current_user.id)
+    )
+    achievements_count = ach_result.scalar() or 0
+
+    # Вычисляем текущую серию из реальных записей
+    dates_result = await db.execute(
+        select(func.date(MoodEntry.timestamp).label('entry_date'))
+        .where(MoodEntry.user_id == current_user.id)
+        .group_by(func.date(MoodEntry.timestamp))
+        .order_by(func.date(MoodEntry.timestamp).desc())
+    )
+    dates = [row[0] for row in dates_result.fetchall()]
+
+    today = datetime.utcnow().date()
+    current_streak = 0
+    if dates and dates[0] >= today - timedelta(days=1):
+        expected = dates[0]
+        for d in dates:
+            if d == expected:
+                current_streak += 1
+                expected -= timedelta(days=1)
+            else:
+                break
+
+    longest_streak = max(current_user.longest_streak or 0, current_streak)
+
+    return {
+        "total_entries": total_entries,
+        "current_streak": current_streak,
+        "longest_streak": longest_streak,
+        "achievements_count": achievements_count,
+    }
+
 # Обновление информации пользователя
 @router.put("/me/update")
 async def update_user_info(

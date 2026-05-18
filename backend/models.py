@@ -69,8 +69,11 @@ class UserCreate(UserBase):
 class User(UserBase):
     id: int
     created_at: datetime
+    current_streak: int = 0
+    longest_streak: int = 0
+    total_entries: int = 0
     class Config:
-        from_attributes = True 
+        from_attributes = True
 
 class Token(BaseModel):
     access_token: str
@@ -212,7 +215,7 @@ class MoodEntry(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    mood = Column(Enum(MoodType), nullable=True)
+    mood = Column(String(50), nullable=True)
     details = Column(String(500), nullable=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     

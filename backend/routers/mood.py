@@ -126,10 +126,15 @@ async def create_or_update_mood_event(
             # Стрики
             today_date = now.date()
             last_date = current_user.last_entry_date.date() if current_user.last_entry_date else None
-            
+
             if last_date != today_date:
-                # ... логика стриков (сократил для читаемости логов) ...
                 print("🔥 [DEBUG] Обновляем стрики...")
+                from datetime import timedelta
+                if last_date is not None and (today_date - last_date).days == 1:
+                    current_user.current_streak = (current_user.current_streak or 0) + 1
+                else:
+                    current_user.current_streak = 1
+                current_user.longest_streak = max(current_user.longest_streak or 0, current_user.current_streak)
                 current_user.last_entry_date = now
                 current_user.total_entries = (current_user.total_entries or 0) + 1
 
@@ -180,7 +185,7 @@ async def get_todays_entry(
                 MoodEntry.user_id == current_user.id,
                 MoodEntry.timestamp >= today_start
             )
-        )
+        ).order_by(MoodEntry.timestamp.desc())
     )
     return result.scalars().first()
 
